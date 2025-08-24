@@ -1499,9 +1499,9 @@ async function saveToFile(dirHandle, data) {
         prompt += 'Instructions:\n' + analysisInstructions.trim() + '\n\n';
       }
       const body = {
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: 'You are an assistant summarizing tasks and meeting notes' },
+          { role: 'system', content: 'ou are an assistant summarizing tasks and meeting notes. Some notes reference multiple projects. Always include a reference to the specific task or meeting. If multiple items relate to the same project, infer and group them by context.' },
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
@@ -1642,7 +1642,7 @@ End with a section called "Next steps:" summarising key actions.
         (tasksText ? 'Tasks:\n' + tasksText + '\n\n' : '') +
         (notesText ? 'Meeting Notes:\n' + notesText + '\n\n' : '');
       const body = {
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: 'You are an assistant creating an action plan for the work week.' },
           { role: 'user', content: promptBody },
