@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { X, Calendar, User, Flag, Tag, FileText, Clock } from 'lucide-react';
+import { X, Calendar, User, Flag, Tag, FileText } from 'lucide-react';
 
 const CreateTaskModal = ({ 
   projects, 
@@ -12,14 +12,11 @@ const CreateTaskModal = ({
     label: '',
     description: '',
     owner: '',
-    date: '',
     dueDate: '',
     priority: 'normal', // low, normal, high, urgent
     status: 'todo', // todo, in-progress, review, done
     category: '',
     tags: [],
-    estimatedHours: '',
-    actualHours: '',
     projectId: selectedProjectId || 'proj-default',
   });
 
@@ -83,14 +80,14 @@ const CreateTaskModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto dark:bg-[#0F1115] dark:text-gray-200 dark:border dark:border-gray-800">
         <div className="p-6">
           <div className="flex justify-between items-center border-b pb-4 mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Create New Task</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Create New Task</h2>
             <button 
               onClick={onClose} 
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors dark:hover:bg-[#1A1D24]"
             >
               <X className="w-5 h-5" />
             </button>
@@ -113,73 +110,72 @@ const CreateTaskModal = ({
                     type="text"
                     value={taskForm.label}
                     onChange={(e) => setTaskForm(prev => ({ ...prev, label: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
                     placeholder="Enter task title..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Project
-                  </label>
-                  <select
-                    value={taskForm.projectId}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, projectId: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    {projects.map(project => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Project</label>
+                  <div className="relative">
+                    <select
+                      value={taskForm.projectId}
+                      onChange={(e) => setTaskForm(prev => ({ ...prev, projectId: e.target.value }))}
+                      className="appearance-none w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
+                    >
+                      {projects.map(project => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
+                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Description
                 </label>
                 <textarea
                   value={taskForm.description}
                   onChange={(e) => setTaskForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
                   rows={3}
                   placeholder="Enter task description..."
                 />
               </div>
             </div>
 
-            {/* Assignment & Dates */}
+            {/* Assignment & Due Date */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-800 flex items-center">
                 <User className="w-5 h-5 mr-2" />
-                Assignment & Dates
+                Assignment & Due Date
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Owner
                   </label>
                   <input
                     type="text"
                     value={taskForm.owner}
                     onChange={(e) => setTaskForm(prev => ({ ...prev, owner: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
                     placeholder="Assign to..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Category
                   </label>
                   <input
                     type="text"
                     value={taskForm.category}
                     onChange={(e) => setTaskForm(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
                     placeholder="e.g., Development, Design, Research"
                   />
                 </div>
@@ -187,26 +183,14 @@ const CreateTaskModal = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={taskForm.date}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Due Date
                   </label>
                   <input
                     type="date"
                     value={taskForm.dueDate}
                     onChange={(e) => setTaskForm(prev => ({ ...prev, dueDate: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
                   />
                 </div>
               </div>
@@ -221,80 +205,40 @@ const CreateTaskModal = ({
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Priority
-                  </label>
-                  <select
-                    value={taskForm.priority}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, priority: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    {priorityOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Priority</label>
+                  <div className="relative">
+                    <select
+                      value={taskForm.priority}
+                      onChange={(e) => setTaskForm(prev => ({ ...prev, priority: e.target.value }))}
+                      className="appearance-none w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
+                    >
+                      {priorityOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    value={taskForm.status}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, status: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    {statusOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+                  <div className="relative">
+                    <select
+                      value={taskForm.status}
+                      onChange={(e) => setTaskForm(prev => ({ ...prev, status: e.target.value }))}
+                      className="appearance-none w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
+                    >
+                      {statusOptions.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Time Tracking */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-                <Clock className="w-5 h-5 mr-2" />
-                Time Tracking
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Estimated Hours
-                  </label>
-                  <input
-                    type="number"
-                    value={taskForm.estimatedHours}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, estimatedHours: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="0"
-                    min="0"
-                    step="0.5"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Actual Hours
-                  </label>
-                  <input
-                    type="number"
-                    value={taskForm.actualHours}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, actualHours: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="0"
-                    min="0"
-                    step="0.5"
-                  />
-                </div>
-              </div>
-            </div>
+            {/* No time tracking per requirements */}
 
             {/* Tags */}
             <div className="space-y-4">
@@ -307,12 +251,12 @@ const CreateTaskModal = ({
                 {taskForm.tags.map((tag, index) => (
                   <span
                     key={index}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800"
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-md text-sm bg-gray-100 text-gray-800 dark:bg-[#1A1D24] dark:text-gray-200 border border-gray-200 dark:border-gray-700"
                   >
                     {tag}
                     <button
                       onClick={() => removeTag(tag)}
-                      className="ml-2 text-purple-600 hover:text-purple-800"
+                      className="ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -326,12 +270,12 @@ const CreateTaskModal = ({
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
                   placeholder="Add a tag..."
                 />
                 <button
                   onClick={addTag}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  className="px-4 py-2 rounded-md border border-gray-300 text-gray-800 bg-white hover:bg-gray-100 transition-colors dark:border-gray-700 dark:text-gray-100 dark:bg-[#1A1D24] dark:hover:bg-[#232734]"
                 >
                   Add
                 </button>
@@ -341,18 +285,8 @@ const CreateTaskModal = ({
 
           {/* Action Buttons */}
           <div className="flex justify-end space-x-3 pt-6 border-t mt-6">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
-            >
-              Create Task
-            </button>
+            <button onClick={onClose} className="px-5 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#1A1D24]">Cancel</button>
+            <button onClick={handleSave} className="px-5 py-2 rounded-md border border-gray-300 text-gray-800 bg-white hover:bg-gray-100 transition-colors font-medium dark:border-gray-700 dark:text-gray-100 dark:bg-[#1A1D24] dark:hover:bg-[#232734]">Create Task</button>
           </div>
         </div>
       </div>

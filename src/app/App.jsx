@@ -69,7 +69,7 @@ import {
   MEETING_ICON_OPTIONS,
   STORAGE_KEYS
 } from '../shared/utils';
-import { StorageService } from '../shared/services';
+import { StorageService, supabasePushState, supabasePullState } from '../shared/services';
 
 // Import features
 import { 
@@ -81,7 +81,7 @@ import {
 } from '../features';
 
 // Import pages
-import { TimelinePage } from '../pages';
+import { TimelinePage, AgentPage } from '../pages';
 
 // Import components that are still in App.jsx (to be extracted later)
 import MiniCalendar from './components/MiniCalendar';
@@ -154,9 +154,21 @@ export default function App() {
   const [settings, setSettings] = useState(() => {
     const saved = StorageService.get(STORAGE_KEYS.WORK_CHECKLIST);
     if (saved && saved.settings) {
-      return { ...DEFAULT_SETTINGS, ...saved.settings };
+      const envDefaults = {
+        supabaseUrl: import.meta?.env?.VITE_SUPABASE_URL || '',
+        supabaseAnonKey: import.meta?.env?.VITE_SUPABASE_ANON_KEY || '',
+        supabaseWorkspaceId: import.meta?.env?.VITE_SUPABASE_WORKSPACE_ID || '',
+        supabaseEnabled: (import.meta?.env?.VITE_SUPABASE_ENABLED === 'true') || saved.settings.supabaseEnabled || false,
+      };
+      return { ...DEFAULT_SETTINGS, ...envDefaults, ...saved.settings };
     }
-    return DEFAULT_SETTINGS;
+    const envDefaults = {
+      supabaseUrl: import.meta?.env?.VITE_SUPABASE_URL || '',
+      supabaseAnonKey: import.meta?.env?.VITE_SUPABASE_ANON_KEY || '',
+      supabaseWorkspaceId: import.meta?.env?.VITE_SUPABASE_WORKSPACE_ID || '',
+      supabaseEnabled: import.meta?.env?.VITE_SUPABASE_ENABLED === 'true',
+    };
+    return { ...DEFAULT_SETTINGS, ...envDefaults };
   });
 
   // Persist settings to localStorage
@@ -164,6 +176,87 @@ export default function App() {
     const saved = StorageService.get(STORAGE_KEYS.WORK_CHECKLIST, {});
     StorageService.set(STORAGE_KEYS.WORK_CHECKLIST, { ...saved, settings });
   }, [settings]);
+
+  // Debounced Supabase auto-sync (push on changes)
+  const lastPushRef = React.useRef('');
+  const pushTimerRef = React.useRef(null);
+  useEffect(() => {
+    const canSync = settings?.supabaseEnabled && settings?.supabaseUrl && settings?.supabaseAnonKey && settings?.supabaseWorkspaceId;
+    if (!canSync) return;
+    const state = { tiles, meetings, projects, settings };
+    const payload = JSON.stringify(state);
+    if (payload === lastPushRef.current) return;
+    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
+    pushTimerRef.current = setTimeout(async () => {
+      try {
+        const result = await supabasePushState(settings, state);
+        lastPushRef.current = payload;
+        const savedLocal = StorageService.get(STORAGE_KEYS.WORK_CHECKLIST, {});
+        const meta = {
+          remoteUpdatedAt: (result && result.updated_at) || new Date().toISOString(),
+          lastPushAt: new Date().toISOString(),
+        };
+        StorageService.set(STORAGE_KEYS.WORK_CHECKLIST, { ...savedLocal, cloudMeta: meta });
+      } catch (err) {
+        console.warn('Auto-sync failed:', err.message);
+      }
+    }, 1500);
+    return () => pushTimerRef.current && clearTimeout(pushTimerRef.current);
+  }, [tiles, meetings, projects, settings]);
+
+  // Dark-only UI
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+  }, []);
+
+  // On-load pull once per session: only reload if remote is newer than local
+  const pulledOnceRef = React.useRef(false);
+  useEffect(() => {
+    const canSync = settings?.supabaseEnabled && settings?.supabaseUrl && settings?.supabaseAnonKey && settings?.supabaseWorkspaceId;
+    if (!canSync || pulledOnceRef.current) return;
+    pulledOnceRef.current = true;
+    (async () => {
+      try {
+        const remote = await supabasePullState(settings);
+        if (remote?.data) {
+          const local = StorageService.get(STORAGE_KEYS.WORK_CHECKLIST, {});
+          const localRemoteUpdatedAt = local?.cloudMeta?.remoteUpdatedAt ? new Date(local.cloudMeta.remoteUpdatedAt) : null;
+          const remoteUpdatedAt = remote?.updated_at ? new Date(remote.updated_at) : null;
+          // Reload only if remote is newer or local has no stamp
+          if (!localRemoteUpdatedAt || (remoteUpdatedAt && remoteUpdatedAt > localRemoteUpdatedAt)) {
+            StorageService.set(
+              STORAGE_KEYS.WORK_CHECKLIST,
+              { ...remote.data, cloudMeta: { remoteUpdatedAt: remote.updated_at, lastPullAt: new Date().toISOString() } }
+            );
+            window.location.reload();
+          }
+        }
+      } catch (err) {
+        // Silent fail on startup pull
+      }
+    })();
+  }, [settings.supabaseEnabled, settings.supabaseUrl, settings.supabaseAnonKey, settings.supabaseWorkspaceId]);
+
+  // Online listener: pull latest if remote is newer
+  useEffect(() => {
+    const handler = async () => {
+      const canSync = settings?.supabaseEnabled && settings?.supabaseUrl && settings?.supabaseAnonKey && settings?.supabaseWorkspaceId;
+      if (!canSync) return;
+      try {
+        const remote = await supabasePullState(settings);
+        if (!remote?.data) return;
+        const local = StorageService.get(STORAGE_KEYS.WORK_CHECKLIST, {});
+        const localRemoteUpdatedAt = local?.cloudMeta?.remoteUpdatedAt ? new Date(local.cloudMeta.remoteUpdatedAt) : null;
+        const remoteUpdatedAt = remote?.updated_at ? new Date(remote.updated_at) : null;
+        if (!localRemoteUpdatedAt || (remoteUpdatedAt && remoteUpdatedAt > localRemoteUpdatedAt)) {
+          StorageService.set(STORAGE_KEYS.WORK_CHECKLIST, { ...remote.data, cloudMeta: { remoteUpdatedAt: remote.updated_at, lastPullAt: new Date().toISOString() } });
+          window.location.reload();
+        }
+      } catch {}
+    };
+    window.addEventListener('online', handler);
+    return () => window.removeEventListener('online', handler);
+  }, [settings.supabaseEnabled, settings.supabaseUrl, settings.supabaseAnonKey, settings.supabaseWorkspaceId]);
 
   // Global filters and states
   const [priorityFilter, setPriorityFilter] = useState('all');
@@ -175,7 +268,7 @@ export default function App() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
-  const [activePage, setActivePage] = useState('tasks');
+  const [activePage, setActivePage] = useState('timeline');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTaskInfo, setSelectedTaskInfo] = useState(null);
   const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -541,24 +634,24 @@ Please provide a structured action plan with specific daily tasks and priorities
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0B0D12]">
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               {settings.logo && (
                 <img src={settings.logo} alt="Logo" className="w-12 h-12 object-contain" />
               )}
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Work Checklist App</h1>
-                <p className="text-gray-600">Manage your tasks, meetings, and projects efficiently</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Work Checklist App</h1>
+                <p className="text-gray-600 dark:text-gray-400">Manage your tasks, meetings, and projects efficiently</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setShowSettings(true)}
-                className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+                className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-[#1A1D24]"
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -567,35 +660,21 @@ Please provide a structured action plan with specific daily tasks and priorities
         </div>
 
         {/* Navigation */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="flex items-center justify-center space-x-8">
-            <button
-              onClick={() => setActivePage('tasks')}
-              className={`flex flex-col items-center ${activePage === 'tasks' ? 'text-purple-700' : 'text-gray-500 hover:text-purple-600'}`}
-            >
-              <List className="w-6 h-6" />
-              <span className="text-xs mt-1">Tasks</span>
-            </button>
-            <button
-              onClick={() => setActivePage('meetings')}
-              className={`flex flex-col items-center ${activePage === 'meetings' ? 'text-purple-700' : 'text-gray-500 hover:text-purple-600'}`}
-            >
-              <CalendarIcon className="w-6 h-6" />
-              <span className="text-xs mt-1">Meetings</span>
-            </button>
+        <div className="bg-white rounded-xl shadow-md p-4 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
+          <div className="flex items-center justify-center space-x-8 text-gray-600 dark:text-gray-300">
             <button
               onClick={() => setActivePage('timeline')}
-              className={`flex flex-col items-center ${activePage === 'timeline' ? 'text-purple-700' : 'text-gray-500 hover:text-purple-600'}`}
+              className={`flex flex-col items-center ${activePage === 'timeline' ? 'text-gray-100' : 'hover:text-gray-200'}`}
             >
               <CalendarCheck className="w-6 h-6" />
               <span className="text-xs mt-1">Timeline</span>
             </button>
             <button
-              onClick={() => setActivePage('ai')}
-              className={`flex flex-col items-center ${activePage === 'ai' ? 'text-purple-700' : 'text-gray-500 hover:text-purple-600'}`}
+              onClick={() => setActivePage('agent')}
+              className={`flex flex-col items-center ${activePage === 'ai' ? 'text-gray-100' : 'hover:text-gray-200'}`}
             >
               <Bot className="w-6 h-6" />
-              <span className="text-xs mt-1">AI</span>
+              <span className="text-xs mt-1">Agent</span>
             </button>
           </div>
         </div>
@@ -623,6 +702,11 @@ Please provide a structured action plan with specific daily tasks and priorities
                 setShowProjectModal(false);
                 setEditingProject(null);
               }}
+              onProjectDelete={(projectId) => {
+                if (confirm('Delete this project? Tasks under it remain.')) {
+                  deleteProject(projectId);
+                }
+              }}
               onTaskCreate={(taskData) => {
                 createTask(taskData);
               }}
@@ -630,29 +714,21 @@ Please provide a structured action plan with specific daily tasks and priorities
                 // Handle task click - could open a detailed view or edit modal
                 console.log('Task clicked:', task);
               }}
+              updateTask={updateTask}
+              removeTask={removeTask}
             />
           )}
 
           {/* Other pages would go here */}
-          {activePage === 'tasks' && (
-            <div className="text-center py-12">
-              <h2 className="text-xl font-semibold text-gray-500">Tasks Page</h2>
-              <p className="text-gray-400">This will be implemented in the next phase</p>
-            </div>
-          )}
-
-          {activePage === 'meetings' && (
-            <div className="text-center py-12">
-              <h2 className="text-xl font-semibold text-gray-500">Meetings Page</h2>
-              <p className="text-gray-400">This will be implemented in the next phase</p>
-            </div>
-          )}
-
-          {activePage === 'ai' && (
-            <div className="text-center py-12">
-              <h2 className="text-xl font-semibold text-gray-500">AI Assistant Page</h2>
-              <p className="text-gray-400">This will be implemented in the next phase</p>
-            </div>
+          {activePage === 'agent' && (
+            <AgentPage
+              projects={projects}
+              tiles={tiles}
+              meetings={meetings}
+              selectedProjectId={selectedProjectId}
+              createTask={createTask}
+              settings={settings}
+            />
           )}
         </div>
 
@@ -700,7 +776,7 @@ Please provide a structured action plan with specific daily tasks and priorities
         )}
 
         {/* Footer */}
-        <footer className="text-center text-xs py-3 border-t border-gray-200 text-gray-500">
+        <footer className="text-center text-xs py-3 border-t border-gray-200 text-gray-500 dark:border-gray-800 dark:text-gray-400">
           © {new Date().getFullYear()} Khaled Senan. All rights reserved.
         </footer>
       </div>

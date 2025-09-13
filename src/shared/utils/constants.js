@@ -13,6 +13,13 @@ export const DEFAULT_SETTINGS = {
   tokenPerCharText: 1,
   tokenPerCharAudio: 2,
   cloudSyncEnabled: false,
+  theme: 'light', // 'light' | 'dark'
+  storageProvider: 'localStorage', // future: 'cloud'
+  // Supabase configuration (client-side only)
+  supabaseUrl: '',
+  supabaseAnonKey: '',
+  supabaseWorkspaceId: '',
+  supabaseEnabled: false,
 };
 
 // Token management
@@ -48,4 +55,5 @@ export const TIME_RANGES = ['week', 'month', 'quarter', 'year'];
 export const STORAGE_KEYS = {
   WORK_CHECKLIST: 'workChecklist',
   TOKENS: 'workChecklistTokens',
+  AGENT_CHAT: 'workChecklistAgentChat',
 };

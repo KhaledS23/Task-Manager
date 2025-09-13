@@ -12,8 +12,11 @@ const TimelinePage = ({
   onProjectCreate,
   onProjectSave,
   onProjectClose,
+  onProjectDelete,
   onTaskCreate,
-  onTaskClick
+  onTaskClick,
+  updateTask,
+  removeTask
 }) => {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
@@ -29,8 +32,9 @@ const TimelinePage = ({
   };
 
   const handleProjectSave = (projectData) => {
+    // Use onProjectSave for edits to ensure persistence
     if (editingProject) {
-      onProjectEdit(editingProject.id, projectData);
+      onProjectSave(editingProject.id, projectData);
     } else {
       onProjectCreate(projectData);
     }
@@ -53,8 +57,13 @@ const TimelinePage = ({
         onProjectChange={onProjectChange}
         onProjectEdit={handleProjectEdit}
         onProjectCreate={handleProjectCreate}
+        onProjectDelete={onProjectDelete}
         onTaskCreate={onTaskCreate}
         onTaskClick={onTaskClick}
+        tiles={tiles}
+        projects={projects}
+        updateTask={updateTask}
+        removeTask={removeTask}
       />
       
       {showProjectModal && (

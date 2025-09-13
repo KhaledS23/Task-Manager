@@ -145,3 +145,73 @@ export const getAllProjectActivities = (projectId, tiles, meetings) => {
     return dateB - dateA; // Most recent first
   });
 };
+
+// Build a normalized snapshot suitable for LLM context ingestion
+export const buildLLMContextSnapshot = ({ projects = [], tiles = [], meetings = [] }) => {
+  const tasks = tiles.flatMap(tile => (tile.tasks || []).map(t => ({
+    id: t.id,
+    label: t.label,
+    description: t.description || '',
+    owner: t.owner || '',
+    dueDate: t.dueDate || null,
+    priority: t.priority || (t.prio ? 'high' : 'normal'),
+    status: t.status || (t.done ? 'done' : 'todo'),
+    category: t.category || tile.title || '',
+    tags: Array.isArray(t.tags) ? t.tags : [],
+    done: !!t.done,
+    completedAt: t.completedAt || null,
+    projectId: tile.projectId || 'proj-default',
+  })));
+
+  const meetingsFlat = meetings.map(m => ({
+    id: m.id,
+    title: m.title,
+    projectId: m.projectId || 'proj-default',
+    notes: (m.notes || []).map(n => ({
+      id: n.id,
+      date: n.date || null,
+      attendance: n.attendance || '',
+      summary: n.summary ? n.summary.replace(/<[^>]+>/g, '') : '',
+      actions: n.actions ? n.actions.replace(/<[^>]+>/g, '') : '',
+    }))
+  }));
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    projects: projects.map(p => ({ id: p.id, name: p.name, description: p.description || '', color: p.color, status: p.status })),
+    tasks,
+    meetings: meetingsFlat,
+  };
+};
+
+// Build a concise per-project context for LLM
+export const buildProjectContext = (projectId, tiles = [], meetings = []) => {
+  const tasks = tiles
+    .filter(t => t.projectId === projectId)
+    .flatMap(tile => (tile.tasks || []).map(task => ({
+      label: task.label,
+      description: task.description || '',
+      owner: task.owner || '',
+      dueDate: task.dueDate || '',
+      priority: task.priority || (task.prio ? 'high' : 'normal'),
+      status: task.status || (task.done ? 'done' : 'todo'),
+      category: task.category || tile.title || '',
+      tags: Array.isArray(task.tags) ? task.tags : [],
+      done: !!task.done,
+    })));
+
+  const meetingsForProject = meetings
+    .filter(m => m.projectId === projectId)
+    .map(m => ({
+      title: m.title,
+      notes: (m.notes || []).map(n => ({
+        date: n.date || '',
+        attendance: n.attendance || '',
+        summary: n.summary ? n.summary.replace(/<[^>]+>/g, '') : '',
+        actions: n.actions ? n.actions.replace(/<[^>]+>/g, '') : '',
+      }))
+    }));
+
+  return { tasks, meetings: meetingsForProject };
+};

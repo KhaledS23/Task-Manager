@@ -16,3 +16,27 @@
 ::-webkit-scrollbar-track {
   background-color: transparent;
 }
+
+/* Chat thinking pulse */
+@keyframes thinkingPulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.5; }
+}
+
+.animate-thinking {
+  animation: thinkingPulse 1.8s ease-in-out infinite;
+}
+
+/* Basic markdown-like formatting in chat */
+.chat-content { white-space: pre-wrap; }
+.chat-content ul { margin: 0.25rem 0 0.25rem 1rem; list-style: disc; }
+.chat-content li { margin: 0.125rem 0; }
+.chat-content h3 { font-weight: 600; font-size: 0.95rem; margin: 0.25rem 0; }
+
+/* Code block styling similar to VS Code */
+.chat-content pre { background: #0e1116; color: #e5e7eb; padding: 0.75rem; border-radius: 0.5rem; overflow: auto; border: 1px solid rgba(255,255,255,0.08); }
+.chat-content code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.85rem; }
+.code-wrap { position: relative; }
+.code-copy { position: absolute; top: 0.35rem; right: 0.35rem; opacity: 0; transition: opacity 0.2s ease; background: rgba(31,35,42,0.85); color: #e5e7eb; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.375rem; padding: 0.15rem 0.4rem; font-size: 0.75rem; }
+.code-wrap:hover .code-copy { opacity: 1; }
