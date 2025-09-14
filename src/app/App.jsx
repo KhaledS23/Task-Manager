@@ -27,6 +27,11 @@ import {
   Tag,
   LifeBuoy,
   PieChart,
+  Cloud,
+  CloudOff,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -180,6 +185,7 @@ export default function App() {
   // Debounced Supabase auto-sync (push on changes)
   const lastPushRef = React.useRef('');
   const pushTimerRef = React.useRef(null);
+  const [cloudStatus, setCloudStatus] = useState('idle'); // idle|syncing|synced|offline|error
   useEffect(() => {
     const canSync = settings?.supabaseEnabled && settings?.supabaseUrl && settings?.supabaseAnonKey && settings?.supabaseWorkspaceId;
     if (!canSync) return;
@@ -649,6 +655,25 @@ Please provide a structured action plan with specific daily tasks and priorities
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Cloud status */}
+              {(() => {
+                const enabled = !!settings.supabaseEnabled && !!settings.supabaseUrl && !!settings.supabaseAnonKey && !!settings.supabaseWorkspaceId;
+                const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+                const status = !enabled ? 'local' : offline ? 'offline' : 'online';
+                const pillClass =
+                  status === 'online'
+                    ? 'text-emerald-300 bg-emerald-900/30 border-emerald-700'
+                    : status === 'offline'
+                    ? 'text-yellow-300 bg-yellow-900/30 border-yellow-700'
+                    : 'text-gray-300 bg-gray-800 border-gray-600';
+                const LabelIcon = status === 'online' ? CheckCircle2 : status === 'offline' ? CloudOff : Cloud;
+                return (
+                  <span className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${pillClass}`} title={enabled ? `Supabase ${status}` : 'Local only'}>
+                    <LabelIcon className="w-3.5 h-3.5" />
+                    {enabled ? (status === 'online' ? 'Cloud: Online' : 'Cloud: Offline') : 'Local Storage'}
+                  </span>
+                );
+              })()}
               <button
                 onClick={() => setShowSettings(true)}
                 className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-[#1A1D24]"
