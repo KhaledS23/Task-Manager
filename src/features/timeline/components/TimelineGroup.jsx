@@ -22,6 +22,17 @@ const TimelineGroup = ({ group, isCollapsed, onTaskClick, onMeetingClick, onTask
     try { return isBefore(parseISO(due), new Date()); } catch { return false; }
   };
 
+  const handleActivitySelection = (activity) => {
+    if (activity.type === 'task') {
+      onTaskClick && onTaskClick(activity);
+      return;
+    }
+    if (activity.type === 'meeting') {
+      onMeetingClick && onMeetingClick(activity);
+    }
+    setExpandedId((prev) => (prev === activity.id ? null : activity.id));
+  };
+
   return (
     <div className="timeline-group text-xs">
       <div 
@@ -53,7 +64,7 @@ const TimelineGroup = ({ group, isCollapsed, onTaskClick, onMeetingClick, onTask
                 className={`relative p-2.5 bg-white rounded-md border cursor-pointer transition-colors ${
                   activity.done ? 'opacity-90 border-green-200' : 'border-gray-200'
                 } hover:bg-gray-50 dark:bg-[#0F1115] dark:border-gray-800 dark:hover:bg-[#151922] shadow-sm`}
-                onClick={() => setExpandedId(prev => prev === activity.id ? null : activity.id)}
+                onClick={() => handleActivitySelection(activity)}
               >
                 {/* node dot */}
                 <div className={`absolute -left-4 top-1.5 w-3 h-3 rounded-full border-2 ${

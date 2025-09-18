@@ -13,6 +13,8 @@ import {
   Paperclip,
   Columns,
   FolderOpen,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { getAllProjectActivities, groupActivitiesByTimeRange } from '../../../shared/utils';
@@ -145,6 +147,7 @@ const TimelineView = ({
   const [showAttachments, setShowAttachments] = useState(false);
   const [editingMeetingId, setEditingMeetingId] = useState(null);
   const [phaseDrag, setPhaseDrag] = useState({ active: null, over: null });
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
 
   const activeProject = useMemo(() => {
     return projects.find((project) => project.id === selectedProjectId) || projects[0];
@@ -349,20 +352,47 @@ const TimelineView = ({
     <div className="max-w-7xl mx-auto">
       <div className="flex h-screen">
         {/* Project Sidebar */}
-        <div className="w-80 bg-white rounded-xl shadow-md p-3.5 mr-4 dark:bg-[#0F1115] dark:border dark:border-gray-800">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Projects</h3>
-            <button onClick={onProjectCreate} className="text-gray-500 hover:text-gray-300">
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="space-y-2 text-xs">
-            {projects.map((project) => {
-              const isSelected = project.id === activeProject?.id;
-              const isDragOver = dragOverProjectId === project.id && draggingProjectId && draggingProjectId !== project.id;
-              return (
-                <div
-                  key={project.id}
+        <div
+          className={`relative mr-4 overflow-hidden rounded-xl bg-white shadow-md transition-[width] duration-300 dark:bg-[#0F1115] dark:border dark:border-gray-800 ${
+            projectsCollapsed ? 'w-16' : 'w-80'
+          }`}
+        >
+          <button
+            onClick={() => setProjectsCollapsed((prev) => !prev)}
+            className="absolute -right-3 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:text-indigo-500 dark:border-gray-700 dark:bg-[#0F1115] dark:text-gray-300"
+            aria-label={projectsCollapsed ? 'Expand projects panel' : 'Collapse projects panel'}
+          >
+            {projectsCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+          {projectsCollapsed ? (
+            <div className="flex h-full flex-col items-center justify-between py-4">
+              <button
+                onClick={onProjectCreate}
+                className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                title="Create project"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <div className="flex-1" />
+              <span className="mb-6 rotate-90 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Projects
+              </span>
+            </div>
+          ) : (
+            <div className="p-3.5">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Projects</h3>
+                <button onClick={onProjectCreate} className="text-gray-500 transition hover:text-gray-300">
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2 text-xs">
+                {projects.map((project) => {
+                  const isSelected = project.id === activeProject?.id;
+                  const isDragOver = dragOverProjectId === project.id && draggingProjectId && draggingProjectId !== project.id;
+                  return (
+                    <div
+                      key={project.id}
                   draggable={Boolean(onProjectReorder)}
                   onDragStart={(event) => {
                     event.dataTransfer.effectAllowed = 'move';
@@ -406,10 +436,12 @@ const TimelineView = ({
                       </button>
                     )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Main content */}

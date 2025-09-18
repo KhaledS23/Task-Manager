@@ -71,22 +71,22 @@ const MeetingEditor = ({
   attachmentDirStatus,
   presentation,
 }) => {
-  const [form, setForm] = useState(() => ({
-    title: meeting.title || 'Untitled meeting',
-    date: meeting.date || new Date().toISOString().slice(0, 10),
-    participants: meeting.participants || '',
-    summary: meeting.summary || '',
-  }));
+  const buildFormState = (meetingData) => ({
+    title: meetingData.title || 'Untitled meeting',
+    date: meetingData.date || new Date().toISOString().slice(0, 10),
+    participants: meetingData.participants || '',
+    summary: meetingData.summary || '',
+  });
+
+  const [form, setForm] = useState(() => buildFormState(meeting));
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
+  const initialFormRef = useRef(buildFormState(meeting));
 
   useEffect(() => {
-    setForm({
-      title: meeting.title || 'Untitled meeting',
-      date: meeting.date || new Date().toISOString().slice(0, 10),
-      participants: meeting.participants || '',
-      summary: meeting.summary || '',
-    });
+    const nextState = buildFormState(meeting);
+    setForm(nextState);
+    initialFormRef.current = nextState;
   }, [meeting]);
 
   const linkedTasks = useMemo(() => {
@@ -95,14 +95,46 @@ const MeetingEditor = ({
       .filter(({ context }) => Boolean(context));
   }, [meeting.linkedTaskIds, taskLookup]);
 
+  const isDirty = useMemo(() => {
+    const initial = initialFormRef.current;
+    return Object.keys(initial).some((key) => (initial[key] || '') !== (form[key] || ''));
+  }, [form]);
+
   const handleField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const submitSave = async () => {
     setSaving(true);
-    await onSave(meeting.id, form);
-    setSaving(false);
+    try {
+      await onSave(meeting.id, form);
+      initialFormRef.current = { ...form };
+      return true;
+    } catch (err) {
+      console.error('Failed to save meeting', err);
+      alert('Unable to save meeting changes right now. Please try again.');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBack = async () => {
+    if (isDirty) {
+      const shouldSave = window.confirm('Save changes before going back? Press OK to save, Cancel to choose whether to discard.');
+      if (shouldSave) {
+        const saved = await submitSave();
+        if (saved) {
+          onClose();
+        }
+        return;
+      }
+      const discard = window.confirm('Discard unsaved changes and go back?');
+      if (!discard) {
+        return;
+      }
+    }
+    onClose();
   };
 
   const triggerUpload = () => {
@@ -148,7 +180,7 @@ const MeetingEditor = ({
         <Trash2 className="w-3.5 h-3.5" /> Delete
       </button>
       <button
-        onClick={onClose}
+        onClick={handleBack}
         className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-[#1A1D24]"
       >
         <ArrowLeft className="w-3.5 h-3.5" /> Back

@@ -33,6 +33,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Sparkles,
+  Sun,
+  Moon,
+  Palette,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -255,15 +258,23 @@ export default function App() {
   // Apply theme to document root/body
   useEffect(() => {
     const theme = settings?.theme || 'dark';
-    const isDark = theme === 'dark';
+    const isDark = theme === 'dark' || theme === 'navy';
     const root = document.documentElement;
     root.classList.toggle('dark', isDark);
+    root.dataset.theme = theme;
     if (typeof document !== 'undefined') {
       const body = document.body;
-      body.classList.toggle('light-theme', !isDark);
-      body.classList.toggle('dark-theme', isDark);
-      body.style.backgroundColor = isDark ? '#05070c' : '#f4f6fb';
-      body.style.color = isDark ? '#e5e7eb' : '#1f2937';
+      const themeStyles = {
+        light: { background: '#f4f6fb', color: '#1f2937' },
+        dark: { background: '#05070c', color: '#e5e7eb' },
+        navy: { background: '#0a1324', color: '#e6ecff' },
+      };
+      const palette = themeStyles[theme] || themeStyles.dark;
+      body.classList.toggle('light-theme', theme === 'light');
+      body.classList.toggle('dark-theme', theme === 'dark');
+      body.classList.toggle('navy-theme', theme === 'navy');
+      body.style.backgroundColor = palette.background;
+      body.style.color = palette.color;
     }
   }, [settings?.theme]);
 
@@ -862,8 +873,19 @@ Please provide a structured action plan with specific daily tasks and priorities
     });
   };
 
+  const themeMode = settings?.theme || 'dark';
+  const themeOptions = [
+    { key: 'light', icon: Sun, label: 'Light' },
+    { key: 'dark', icon: Moon, label: 'Dark' },
+    { key: 'navy', icon: Palette, label: 'Midnight' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#0B0D12]">
+    <div
+      className={`min-h-screen bg-gray-50 dark:bg-[#0B0D12] ${
+        themeMode === 'navy' ? 'bg-[#0b1224]' : ''
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
@@ -878,6 +900,26 @@ Please provide a structured action plan with specific daily tasks and priorities
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 p-1 shadow-sm dark:border-gray-700 dark:bg-[#1A1D24]">
+                {themeOptions.map(({ key, icon: Icon, label }) => {
+                  const isActive = themeMode === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSettings((prev) => ({ ...prev, theme: key }))}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+                        isActive
+                          ? 'bg-white text-indigo-600 shadow dark:bg-[#2B3242] dark:text-indigo-300'
+                          : 'text-gray-500 hover:text-indigo-500'
+                      }`}
+                      aria-label={`Switch to ${label} mode`}
+                      title={label}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </button>
+                  );
+                })}
+              </div>
               {/* Cloud status */}
               {(() => {
                 const enabled = !!settings.supabaseEnabled && !!settings.supabaseUrl && !!settings.supabaseAnonKey && !!settings.supabaseWorkspaceId;
