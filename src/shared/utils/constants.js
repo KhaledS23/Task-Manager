@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS = {
   theme: 'dark', // 'light' | 'dark'
   phases: ['Conceptual', 'Design', 'Validation', 'Startup'],
   attachmentDirectoryName: '',
+  deeplApiKey: '',
   storageProvider: 'localStorage', // future: 'cloud'
   // Supabase configuration (client-side only)
   supabaseUrl: '',

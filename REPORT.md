@@ -8,7 +8,7 @@
 | Type check | ⚠️ Not configured | No TS/type tooling |
 | `npm audit --production` | ❌ 1 high, 3 moderate | `jspdf@2.5.2`, `dompurify@<3.2.4`, `react-quill`/`quill` vulnerabilities |
 | Dependency freshness | 11 outdated | React 18.x (latest 19.x), Vite 4.x (latest 7.x), Tailwind 3.x (latest 4.x), etc. |
-| Bundle size | Largest chunk 1.02 MB gz 302 kB | React Quill + new timeline board increase payload; plan code-splitting |
+| Bundle size | Largest chunk 1.03 MB gz 304 kB | React Quill + phase board + DeepL workspace increase payload; plan code-splitting |
 | LOC snapshot | 5,212 code, 57 files (`cloc src`) | Meeting editor + filesystem services add footprint; monolith archived in `deprecated/` |
 
 ## System Overview
@@ -89,6 +89,7 @@ Active tree (depth≤2):
 ## Feature Updates
 
 - Timeline now supports a **phase board**: tasks can be dragged across phases and the column order persists via settings.
-- Meetings gained a **rich note editor** with agenda/summary/follow-up sections, inline task management, and attachment support.
+- Meetings gained a **rich note editor** with inline layout, compact controls, and attachment management embedded in the timeline experience.
+- Introduced a **DeepL workspace** with translation and writing modes calling the API key stored in settings.
 - Settings exposes a **local attachment folder picker** leveraging the File System Access API; directory handles persist via IndexedDB and rehydrate on launch.
-- A compact light theme pass ensures legible typography across the timeline, board, and meeting workspace.
+- Task and project modals were refreshed with compact typography, rounded surfaces, and gradient shells to match the new visual language.

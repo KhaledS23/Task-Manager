@@ -32,28 +32,31 @@ const PhaseColumn = ({
   onOpenTask,
 }) => (
   <div
-    className="flex w-64 shrink-0 flex-col rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-[#10131A]"
+    className="flex w-72 shrink-0 flex-col rounded-2xl border border-indigo-100/60 bg-white/90 shadow-lg shadow-indigo-100/40 backdrop-blur dark:border-indigo-500/20 dark:bg-[#111624] dark:shadow-none"
     draggable={groupingEnabled}
     onDragStart={(event) => onDragStartPhase(event, phase)}
     onDragOver={(event) => onDragOverPhase(event, phase)}
     onDragEnd={onDragEndPhase}
     onDrop={(event) => onDropTask(event, phase)}
   >
-    <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:border-gray-800 dark:text-gray-300">
-      {phase}
+    <div className="flex items-center justify-between border-b border-indigo-100 px-4 py-3 text-xs tracking-wide text-indigo-600 dark:border-indigo-500/20 dark:text-indigo-200">
+      <div>
+        <div className="text-[11px] font-semibold uppercase">{phase}</div>
+        <div className="text-[10px] text-gray-400 dark:text-gray-500">{tasks.length} task{tasks.length === 1 ? '' : 's'}</div>
+      </div>
       <button
         onClick={(event) => {
           event.stopPropagation();
           onAddTask(phase);
         }}
-        className="rounded-md border border-gray-200 p-1 text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+        className="rounded-full border border-indigo-100 bg-white/80 p-1 text-indigo-500 shadow hover:bg-indigo-500 hover:text-white dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200"
       >
-        <Plus className="w-3 h-3" />
+        <Plus className="w-3.5 h-3.5" />
       </button>
     </div>
-    <div className="flex-1 space-y-2 overflow-y-auto px-3 py-2">
+    <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
       {tasks.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 p-3 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <div className="rounded-xl border border-dashed border-indigo-200/70 bg-indigo-50/40 p-4 text-[11px] font-medium text-indigo-400 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200">
           Drag tasks here
         </div>
       ) : (
@@ -67,10 +70,10 @@ const PhaseColumn = ({
               event.dataTransfer.effectAllowed = 'move';
             }}
             onClick={() => onOpenTask(task)}
-            className="cursor-grab rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs shadow-sm transition hover:border-indigo-400 dark:border-gray-700 dark:bg-[#0F1115] dark:text-gray-100"
+            className="cursor-grab rounded-2xl border border-transparent bg-gradient-to-br from-white via-indigo-50 to-white px-4 py-3 text-xs text-gray-700 shadow-md shadow-indigo-100 transition hover:border-indigo-300 dark:from-[#101624] dark:via-[#121a2a] dark:to-[#101624] dark:text-gray-100"
           >
-            <div className="font-medium text-gray-700 dark:text-gray-100">{task.label}</div>
-            <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-gray-500 dark:text-gray-400">
+            <div className="font-semibold text-gray-800 dark:text-gray-100">{task.label}</div>
+            <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-gray-500 dark:text-gray-400">
               {task.owner && <span>Owner: {task.owner}</span>}
               {task.dueDate && <span>Due: {task.dueDate}</span>}
               {task.priority && <span>Priority: {task.priority}</span>}
@@ -788,6 +791,31 @@ const TimelineView = ({
                   ))}
                 </div>
               )
+            ) : viewMode === 'meetings' && editingMeeting ? (
+              <MeetingEditor
+                meeting={editingMeeting}
+                presentation="inline"
+                onClose={() => setEditingMeetingId(null)}
+                onSave={(meetingId, updates) => onMeetingUpdate(meetingId, updates)}
+                onDelete={(meetingId) => {
+                  onMeetingDelete(meetingId);
+                  setEditingMeetingId(null);
+                }}
+                onAddTask={(meetingId) =>
+                  openCreateTaskModal({ projectId: editingMeeting.projectId, meetingId })
+                }
+                onEditTask={(tileId, taskId) => setSelectedTaskInfo({ tileId, taskId })}
+                onUnlinkTask={(meetingId, taskId) => onUnlinkTaskFromMeeting(meetingId, taskId)}
+                onDeleteTask={(tileId, taskId, meetingId) => {
+                  removeTask && removeTask(tileId, taskId);
+                  onUnlinkTaskFromMeeting(meetingId, taskId);
+                }}
+                taskLookup={taskLookup}
+                onAttachmentUpload={onAttachmentUpload}
+                onAttachmentDownload={onAttachmentDownload}
+                onAttachmentDelete={onAttachmentDelete}
+                attachmentDirStatus={attachmentDirStatus}
+              />
             ) : (
               <MeetingBoard
                 meetings={meetingsForProject}

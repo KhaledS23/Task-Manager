@@ -310,19 +310,46 @@ const SettingsPage = ({
           </div>
         </section>
 
-        {/* API Key */}
-        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Integration</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Your OpenAI API key is stored locally on this device.</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="password"
-              value={settings.apiKey || ''}
-              onChange={(e) => setSettings((prev) => ({ ...prev, apiKey: e.target.value }))}
-              placeholder="sk-..."
-              className="flex-1 min-w-[240px] rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
-            />
-            <span className="text-xs text-gray-500 dark:text-gray-400">Not synced to cloud</span>
+        {/* API Keys */}
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115] space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Integration</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Store credentials locally for OpenAI actions and DeepL translation.</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                OpenAI API Key
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  value={settings.apiKey || ''}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, apiKey: e.target.value }))}
+                  placeholder="sk-..."
+                  className="flex-1 min-w-[220px] rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
+                />
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">Stored locally</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                DeepL API Key
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  value={settings.deeplApiKey || ''}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, deeplApiKey: e.target.value }))}
+                  placeholder="deepl-xxxxxxxx"
+                  className="flex-1 min-w-[220px] rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
+                />
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">Write & Translate</span>
+              </div>
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Required to use the DeepL workspace in this app.</p>
+            </div>
           </div>
         </section>
 

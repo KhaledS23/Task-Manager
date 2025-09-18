@@ -2,15 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import ReactQuill from 'react-quill';
 import {
-  X,
+  ArrowLeft,
   CalendarDays,
-  Users,
-  Save,
-  Trash2,
-  Plus,
-  Paperclip,
-  FileText,
   CheckCircle2,
+  FileText,
+  Plus,
+  Sparkles,
+  Trash2,
+  Users,
+  Paperclip,
 } from 'lucide-react';
 
 import 'react-quill/dist/quill.snow.css';
@@ -24,6 +24,35 @@ const quillModules = {
     ['link'],
     ['clean'],
   ],
+};
+
+const attachmentStatusBadge = (status) => {
+  switch (status) {
+    case 'granted':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-500">
+          <CheckCircle2 className="w-3 h-3" /> Synced
+        </span>
+      );
+    case 'denied':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-500">
+          Permission needed
+        </span>
+      );
+    case 'not-configured':
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-gray-500/10 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+          No folder
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-gray-500/10 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+          Checking…
+        </span>
+      );
+  }
 };
 
 const MeetingEditor = ({
@@ -40,6 +69,7 @@ const MeetingEditor = ({
   onAttachmentDownload,
   onAttachmentDelete,
   attachmentDirStatus,
+  presentation,
 }) => {
   const [form, setForm] = useState(() => ({
     title: meeting.title || 'Untitled meeting',
@@ -47,8 +77,8 @@ const MeetingEditor = ({
     participants: meeting.participants || '',
     agenda: meeting.agenda || '',
     summary: meeting.summary || '',
-    followUps: meeting.followUps || '',
   }));
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -58,7 +88,6 @@ const MeetingEditor = ({
       participants: meeting.participants || '',
       agenda: meeting.agenda || '',
       summary: meeting.summary || '',
-      followUps: meeting.followUps || '',
     });
   }, [meeting]);
 
@@ -68,19 +97,20 @@ const MeetingEditor = ({
       .filter(({ context }) => Boolean(context));
   }, [meeting.linkedTaskIds, taskLookup]);
 
-  const handleChange = (key, value) => {
+  const handleField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
-    onSave(meeting.id, form);
+  const submitSave = async () => {
+    setSaving(true);
+    await onSave(meeting.id, form);
+    setSaving(false);
   };
 
-  const triggerAttachmentUpload = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-      fileInputRef.current.click();
-    }
+  const triggerUpload = () => {
+    if (!fileInputRef.current) return;
+    fileInputRef.current.value = '';
+    fileInputRef.current.click();
   };
 
   const handleAttachmentChange = async (event) => {
@@ -89,143 +119,144 @@ const MeetingEditor = ({
     await onAttachmentUpload({ projectId: meeting.projectId, meetingId: meeting.id, files });
   };
 
-  const attachmentStatusBadge = () => {
-    switch (attachmentDirStatus) {
-      case 'granted':
-        return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-500"><CheckCircle2 className="w-3 h-3" /> Synced</span>;
-      case 'denied':
-        return <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-500">Auth needed</span>;
-      case 'not-configured':
-        return <span className="inline-flex items-center gap-1 rounded-full bg-gray-500/10 px-2 py-0.5 text-[10px] font-medium text-gray-500">No folder</span>;
-      default:
-        return <span className="inline-flex items-center gap-1 rounded-full bg-gray-500/10 px-2 py-0.5 text-[10px] font-medium text-gray-500">Checking…</span>;
-    }
-  };
+  const attachments = Array.isArray(meeting.attachments) ? meeting.attachments : [];
+  const isModal = presentation === 'modal';
+
+  const editorShellClass = isModal
+    ? 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4'
+    : 'w-full';
+  const editorBodyClass = isModal
+    ? 'relative h-full w-full max-w-5xl overflow-hidden rounded-3xl bg-gradient-to-br from-white via-gray-50 to-white shadow-2xl dark:from-[#0E111A] dark:via-[#11141D] dark:to-[#0E111A]'
+    : 'rounded-3xl border border-gray-200 bg-gradient-to-br from-white via-gray-50 to-white shadow-xl dark:border-gray-800 dark:from-[#0E111A] dark:via-[#11141D] dark:to-[#0E111A]';
+
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={submitSave}
+        disabled={saving}
+        className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-indigo-500 disabled:opacity-60"
+      >
+        <Sparkles className="w-3.5 h-3.5" />
+        {saving ? 'Saving…' : 'Save changes'}
+      </button>
+      <button
+        onClick={() => {
+          if (confirm('Permanently delete this meeting and its attachments?')) {
+            onDelete(meeting.id);
+          }
+        }}
+        className="inline-flex items-center gap-1 rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/30"
+      >
+        <Trash2 className="w-3.5 h-3.5" /> Delete
+      </button>
+      <button
+        onClick={onClose}
+        className="inline-flex items-center gap-2 rounded-full border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-[#1A1D24]"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" /> Back
+      </button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="relative h-full w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#0F1115] dark:text-gray-100">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Meeting details</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Capture agenda, notes, follow-up tasks, and attachments.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSave}
-              className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-indigo-500"
-            >
-              <Save className="w-4 h-4" />
-              Save
-            </button>
-            <button
-              onClick={() => onDelete(meeting.id)}
-              className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/30"
-            >
-              <Trash2 className="w-4 h-4" />
-              Delete
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded-lg border border-gray-200 p-2 text-gray-400 hover:text-gray-600 dark:border-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="h-full overflow-y-auto px-6 py-4">
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div className="space-y-4">
+    <div className={editorShellClass}>
+      <div className={editorBodyClass}>
+        <div className="flex flex-col">
+          <div className="border-b border-white/40 px-6 py-5 backdrop-blur dark:border-white/5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  <FileText className="w-3.5 h-3.5" /> Title
-                </label>
                 <input
-                  type="text"
                   value={form.title}
-                  onChange={(e) => handleChange('title', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
+                  onChange={(e) => handleField('title', e.target.value)}
+                  className="w-full min-w-[240px] rounded-xl border border-transparent bg-white/60 px-4 py-2 text-lg font-semibold text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:bg-white/10 dark:text-gray-100 dark:shadow-none dark:focus:ring-indigo-500/40"
+                  placeholder="Meeting title"
                 />
+                <p className="mt-1 text-[12px] text-gray-500 dark:text-gray-400">
+                  Meeting notes stay in sync with tasks, attachments, and project metadata.
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {headerActions}
+            </div>
+          </div>
+
+          <div className="grid gap-6 px-6 pb-6 pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
+            <div className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <label className="flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-white/5">
+                  <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     <CalendarDays className="w-3.5 h-3.5" /> Date
-                  </label>
+                  </span>
                   <input
                     type="date"
                     value={form.date}
-                    onChange={(e) => handleChange('date', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
+                    onChange={(e) => handleField('date', e.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-white/5 dark:text-gray-100 dark:focus:ring-indigo-500/40"
                   />
-                </div>
-                <div>
-                  <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                </label>
+                <label className="flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-white/5 sm:col-span-2">
+                  <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     <Users className="w-3.5 h-3.5" /> Participants
-                  </label>
+                  </span>
                   <input
                     type="text"
                     value={form.participants}
-                    onChange={(e) => handleChange('participants', e.target.value)}
-                    placeholder="Comma separated"
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
+                    onChange={(e) => handleField('participants', e.target.value)}
+                    placeholder="Comma-separated names"
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-white/5 dark:text-gray-100 dark:focus:ring-indigo-500/40"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <FileText className="w-3.5 h-3.5" /> Agenda
+                  </label>
+                  <ReactQuill
+                    theme="snow"
+                    modules={quillModules}
+                    value={form.agenda}
+                    onChange={(value) => handleField('agenda', value)}
+                    className="rounded-2xl bg-white dark:bg-white/5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <Sparkles className="w-3.5 h-3.5" /> Summary
+                  </label>
+                  <ReactQuill
+                    theme="snow"
+                    modules={quillModules}
+                    value={form.summary}
+                    onChange={(value) => handleField('summary', value)}
+                    className="rounded-2xl bg-white dark:bg-white/5"
                   />
                 </div>
               </div>
-
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Agenda</label>
-                <ReactQuill
-                  theme="snow"
-                  modules={quillModules}
-                  value={form.agenda}
-                  onChange={(value) => handleChange('agenda', value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Summary notes</label>
-                <ReactQuill
-                  theme="snow"
-                  modules={quillModules}
-                  value={form.summary}
-                  onChange={(value) => handleChange('summary', value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Follow-up tasks &amp; decisions</label>
-                <ReactQuill
-                  theme="snow"
-                  modules={quillModules}
-                  value={form.followUps}
-                  onChange={(value) => handleChange('followUps', value)}
-                />
-              </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-[#10131A]">
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-gray-200 bg-white/85 p-4 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-white/5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Tasks</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Associated tasks</h3>
                   <button
                     onClick={() => onAddTask(meeting.id)}
-                    className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+                    className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white shadow hover:bg-indigo-500"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Add task
+                    <Plus className="w-3.5 h-3.5" /> New task
                   </button>
                 </div>
-
                 {linkedTasks.length === 0 ? (
-                  <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                    No tasks linked yet. Create tasks directly in the meeting to keep everything in sync.
+                  <p className="mt-3 text-[12px] text-gray-500 dark:text-gray-400">
+                    No tasks yet. Create action items here and they’ll appear in the project board automatically.
                   </p>
                 ) : (
                   <div className="mt-3 space-y-2">
                     {linkedTasks.map(({ taskId, context }) => (
-                      <div key={taskId} className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-[#0F1115]">
-                        <div className="flex items-start justify-between gap-2">
+                      <div key={taskId} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm dark:border-gray-700 dark:bg-[#0F1115] dark:text-gray-100">
+                        <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="font-medium text-gray-700 dark:text-gray-100">{context.task.label}</div>
+                            <div className="font-medium text-gray-800 dark:text-gray-100">{context.task.label}</div>
                             <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-gray-500 dark:text-gray-400">
                               {context.task.owner && <span>Owner: {context.task.owner}</span>}
                               {context.task.dueDate && <span>Due: {context.task.dueDate}</span>}
@@ -236,19 +267,19 @@ const MeetingEditor = ({
                           <div className="flex gap-1">
                             <button
                               onClick={() => onEditTask(context.tileId, context.task.id)}
-                              className="rounded-md border border-gray-200 p-1 text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                              className="rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => onUnlinkTask(meeting.id, context.task.id)}
-                              className="rounded-md border border-gray-200 p-1 text-gray-500 hover:text-gray-700 dark:border-gray-700 dark:text-gray-300"
+                              className="rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-500 hover:text-gray-700 dark:border-gray-700 dark:text-gray-300"
                             >
                               Unlink
                             </button>
                             <button
                               onClick={() => onDeleteTask(context.tileId, context.task.id, meeting.id)}
-                              className="rounded-md border border-red-200 p-1 text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
+                              className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
                             >
                               Delete
                             </button>
@@ -260,58 +291,52 @@ const MeetingEditor = ({
                 )}
               </div>
 
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-[#10131A]">
+              <div className="rounded-2xl border border-gray-200 bg-white/85 p-4 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-white/5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Attachments</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Attachments</h3>
                   <div className="flex items-center gap-2">
-                    {attachmentStatusBadge()}
+                    {attachmentStatusBadge(attachmentDirStatus)}
                     <button
-                      onClick={triggerAttachmentUpload}
-                      className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-[#1A1D24]"
-                      disabled={attachmentDirStatus === 'denied' || attachmentDirStatus === 'not-configured'}
+                      onClick={triggerUpload}
+                      disabled={attachmentDirStatus !== 'granted'}
+                      className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-[11px] font-medium text-gray-600 transition hover:text-indigo-500 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
                     >
                       <Paperclip className="w-3.5 h-3.5" /> Upload
                     </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      onChange={handleAttachmentChange}
-                      multiple
-                      hidden
-                    />
+                    <input ref={fileInputRef} type="file" multiple hidden onChange={handleAttachmentChange} />
                   </div>
                 </div>
-                <div className="mt-3 space-y-2">
-                  {(meeting.attachments || []).length === 0 ? (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">No files yet. Upload presentations, minutes, or recordings to keep everything together.</p>
-                  ) : (
-                    meeting.attachments.map((attachment) => (
-                      <div key={attachment.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-gray-700 dark:bg-[#0F1115]">
+                {attachments.length === 0 ? (
+                  <p className="mt-3 text-[12px] text-gray-500 dark:text-gray-400">No supporting files yet. Drop slides, transcripts, or recordings here.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {attachments.map((attachment) => (
+                      <div key={attachment.id} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm dark:border-gray-700 dark:bg-[#0F1115] dark:text-gray-100">
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                           <Paperclip className="w-3.5 h-3.5" />
                           <div>
-                            <div className="font-medium text-gray-700 dark:text-gray-100">{attachment.name}</div>
+                            <div className="font-medium text-gray-800 dark:text-gray-100">{attachment.name}</div>
                             <div className="text-[10px] text-gray-500 dark:text-gray-400">{Math.round((attachment.size || 0) / 1024)} KB</div>
                           </div>
                         </div>
                         <div className="flex gap-1">
                           <button
                             onClick={() => onAttachmentDownload(attachment)}
-                            className="rounded-md border border-gray-200 px-2 py-1 text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                            className="rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
                           >
                             View
                           </button>
                           <button
                             onClick={() => onAttachmentDelete(attachment)}
-                            className="rounded-md border border-red-200 px-2 py-1 text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
+                            className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
                           >
                             Remove
                           </button>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -330,7 +355,6 @@ MeetingEditor.propTypes = {
     participants: PropTypes.string,
     agenda: PropTypes.string,
     summary: PropTypes.string,
-    followUps: PropTypes.string,
     linkedTaskIds: PropTypes.arrayOf(PropTypes.string),
     attachments: PropTypes.array,
   }).isRequired,
@@ -346,6 +370,11 @@ MeetingEditor.propTypes = {
   onAttachmentDownload: PropTypes.func.isRequired,
   onAttachmentDelete: PropTypes.func.isRequired,
   attachmentDirStatus: PropTypes.string.isRequired,
+  presentation: PropTypes.oneOf(['modal', 'inline']),
+};
+
+MeetingEditor.defaultProps = {
+  presentation: 'modal',
 };
 
 export default MeetingEditor;

@@ -32,6 +32,7 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -97,7 +98,7 @@ import {
 } from '../features';
 
 // Import pages
-import { TimelinePage, AgentPage } from '../pages';
+import { TimelinePage, AgentPage, DeepLPage } from '../pages';
 
 // Import components that are still in App.jsx (to be extracted later)
 import MiniCalendar from './components/MiniCalendar';
@@ -913,6 +914,7 @@ Please provide a structured action plan with specific daily tasks and priorities
             {[
               { key: 'timeline', label: 'Timeline', icon: CalendarCheck },
               { key: 'agent', label: 'Agent', icon: Bot },
+              { key: 'deepl', label: 'DeepL', icon: Sparkles },
               { key: 'settings', label: 'Settings', icon: Settings },
             ].map((item) => {
               const Icon = item.icon;
@@ -998,6 +1000,10 @@ Please provide a structured action plan with specific daily tasks and priorities
               createTask={createTask}
               settings={settings}
             />
+          )}
+
+          {activePage === 'deepl' && (
+            <DeepLPage settings={settings} />
           )}
 
           {activePage === 'settings' && (
