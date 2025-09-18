@@ -820,10 +820,16 @@ const TimelineView = ({
               <MeetingBoard
                 meetings={meetingsForProject}
                 onCreate={() => {
+                  setViewMode('meetings');
+                  setShowAttachments(false);
                   const meetingId = onMeetingCreate(activeProject?.id || 'proj-default');
                   setEditingMeetingId(meetingId);
                 }}
-                onEdit={setEditingMeetingId}
+                onEdit={(meetingId) => {
+                  setViewMode('meetings');
+                  setShowAttachments(false);
+                  setEditingMeetingId(meetingId);
+                }}
                 onDelete={(meetingId) => {
                   if (confirm('Delete this meeting and its attachments?')) {
                     onMeetingDelete(meetingId);
@@ -859,32 +865,6 @@ const TimelineView = ({
           updateTask={updateTask}
           onClose={() => setSelectedTaskInfo(null)}
           phases={phases}
-        />
-      )}
-
-      {editingMeeting && (
-        <MeetingEditor
-          meeting={editingMeeting}
-          onClose={() => setEditingMeetingId(null)}
-          onSave={(meetingId, updates) => onMeetingUpdate(meetingId, updates)}
-          onDelete={(meetingId) => {
-            onMeetingDelete(meetingId);
-            setEditingMeetingId(null);
-          }}
-          onAddTask={(meetingId) =>
-            openCreateTaskModal({ projectId: editingMeeting.projectId, meetingId })
-          }
-          onEditTask={(tileId, taskId) => setSelectedTaskInfo({ tileId, taskId })}
-          onUnlinkTask={(meetingId, taskId) => onUnlinkTaskFromMeeting(meetingId, taskId)}
-          onDeleteTask={(tileId, taskId, meetingId) => {
-            removeTask && removeTask(tileId, taskId);
-            onUnlinkTaskFromMeeting(meetingId, taskId);
-          }}
-          taskLookup={taskLookup}
-          onAttachmentUpload={onAttachmentUpload}
-          onAttachmentDownload={onAttachmentDownload}
-          onAttachmentDelete={onAttachmentDelete}
-          attachmentDirStatus={attachmentDirStatus}
         />
       )}
     </div>

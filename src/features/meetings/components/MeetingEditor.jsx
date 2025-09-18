@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
-  FileText,
   Plus,
   Sparkles,
   Trash2,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import 'react-quill/dist/quill.snow.css';
+import './MeetingEditor.css';
 
 const quillModules = {
   toolbar: [
@@ -75,7 +75,6 @@ const MeetingEditor = ({
     title: meeting.title || 'Untitled meeting',
     date: meeting.date || new Date().toISOString().slice(0, 10),
     participants: meeting.participants || '',
-    agenda: meeting.agenda || '',
     summary: meeting.summary || '',
   }));
   const [saving, setSaving] = useState(false);
@@ -86,7 +85,6 @@ const MeetingEditor = ({
       title: meeting.title || 'Untitled meeting',
       date: meeting.date || new Date().toISOString().slice(0, 10),
       participants: meeting.participants || '',
-      agenda: meeting.agenda || '',
       summary: meeting.summary || '',
     });
   }, [meeting]);
@@ -207,29 +205,22 @@ const MeetingEditor = ({
                 </label>
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    <FileText className="w-3.5 h-3.5" /> Agenda
-                  </label>
-                  <ReactQuill
-                    theme="snow"
-                    modules={quillModules}
-                    value={form.agenda}
-                    onChange={(value) => handleField('agenda', value)}
-                    className="rounded-2xl bg-white dark:bg-white/5"
-                  />
+              <div className="rounded-[28px] bg-white/95 shadow-xl ring-1 ring-indigo-100/70 backdrop-blur dark:bg-[#111624]/95 dark:ring-indigo-500/20">
+                <div className="flex items-center justify-between gap-3 px-6 pt-6">
+                  <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-300" /> Summary
+                  </span>
+                  <span className="hidden rounded-full bg-gray-100 px-3 py-1 text-[10px] font-medium text-gray-500 dark:bg-white/10 dark:text-gray-300 sm:inline-flex">
+                    Rich text
+                  </span>
                 </div>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    <Sparkles className="w-3.5 h-3.5" /> Summary
-                  </label>
+                <div className="px-4 pb-6 pt-2">
                   <ReactQuill
                     theme="snow"
                     modules={quillModules}
                     value={form.summary}
                     onChange={(value) => handleField('summary', value)}
-                    className="rounded-2xl bg-white dark:bg-white/5"
+                    className="meeting-summary-editor"
                   />
                 </div>
               </div>

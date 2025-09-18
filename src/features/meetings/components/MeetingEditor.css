@@ -1,0 +1,29 @@
+.meeting-summary-editor .ql-toolbar.ql-snow {
+  border: none;
+  background: transparent;
+  padding: 0 0 1rem 0;
+}
+
+.meeting-summary-editor .ql-container.ql-snow {
+  border: none;
+  background: transparent;
+  min-height: 320px;
+}
+
+.meeting-summary-editor .ql-editor {
+  padding: 1.25rem 1.5rem 2rem;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.meeting-summary-editor .ql-editor::before {
+  color: rgba(107, 114, 128, 0.6);
+}
+
+.meeting-summary-editor .ql-toolbar .ql-picker {
+  line-height: 1.2;
+}
+
+.meeting-summary-editor .ql-toolbar .ql-formats {
+  margin-right: 1rem;
+}

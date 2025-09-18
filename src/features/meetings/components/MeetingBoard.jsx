@@ -87,8 +87,11 @@ const MeetingBoard = ({ meetings, onCreate, onEdit, onDelete, attachmentResolver
                     </button>
                   </div>
                 </div>
-                {meeting.agenda && (
-                  <div className="mt-3 line-clamp-2 text-sm text-gray-500 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: meeting.agenda }} />
+                {meeting.summary && (
+                  <div
+                    className="mt-4 rounded-xl bg-indigo-50/70 px-3 py-2 text-sm text-indigo-900 shadow-inner ring-1 ring-indigo-100/70 line-clamp-3 dark:bg-indigo-500/10 dark:text-indigo-100 dark:ring-indigo-500/30"
+                    dangerouslySetInnerHTML={{ __html: meeting.summary }}
+                  />
                 )}
               </div>
             );
