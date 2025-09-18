@@ -230,7 +230,7 @@ const AgentPage = ({ projects, tiles, meetings, selectedProjectId, createTask, s
                           {s.owner && <span>Owner: {s.owner}</span>}
                           {s.dueDate && <span>Due: {s.dueDate}</span>}
                           {s.priority && <span className="capitalize">Priority: {s.priority}</span>}
-                          {s.category && <span>Category: {s.category}</span>}
+                          {s.category && <span>Phase: {s.category}</span>}
                           {Array.isArray(s.tags) && s.tags.length > 0 && (
                             <span>Tags: {s.tags.join(', ')}</span>
                           )}

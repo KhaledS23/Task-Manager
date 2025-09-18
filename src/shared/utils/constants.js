@@ -13,7 +13,9 @@ export const DEFAULT_SETTINGS = {
   tokenPerCharText: 1,
   tokenPerCharAudio: 2,
   cloudSyncEnabled: false,
-  theme: 'light', // 'light' | 'dark'
+  theme: 'dark', // 'light' | 'dark'
+  phases: ['Conceptual', 'Design', 'Validation', 'Startup'],
+  attachmentDirectoryName: '',
   storageProvider: 'localStorage', // future: 'cloud'
   // Supabase configuration (client-side only)
   supabaseUrl: '',

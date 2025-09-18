@@ -1,52 +1,187 @@
 import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { motion } from 'framer-motion';
-import { Plus, X, CalendarCheck, Filter, Calendar, List, ChevronDown, Trash2 } from 'lucide-react';
+import {
+  Plus,
+  X,
+  CalendarCheck,
+  Filter,
+  Calendar,
+  List,
+  ChevronDown,
+  Trash2,
+  Paperclip,
+  Columns,
+  FolderOpen,
+} from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { getAllProjectActivities, groupActivitiesByTimeRange } from '../../../shared/utils';
 import TimelineGroup from './TimelineGroup';
 import { CreateTaskModal, TaskModal } from '../../tasks';
+import { MeetingBoard, MeetingEditor } from '../../meetings';
 
-const TimelineView = ({ 
-  projects, 
-  tiles, 
-  meetings, 
-  selectedProjectId, 
+const PhaseColumn = ({
+  phase,
+  tasks,
+  onDropTask,
+  onDragStartPhase,
+  onDragOverPhase,
+  onDragEndPhase,
+  groupingEnabled,
+  onAddTask,
+  onOpenTask,
+}) => (
+  <div
+    className="flex w-64 shrink-0 flex-col rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-[#10131A]"
+    draggable={groupingEnabled}
+    onDragStart={(event) => onDragStartPhase(event, phase)}
+    onDragOver={(event) => onDragOverPhase(event, phase)}
+    onDragEnd={onDragEndPhase}
+    onDrop={(event) => onDropTask(event, phase)}
+  >
+    <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:border-gray-800 dark:text-gray-300">
+      {phase}
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          onAddTask(phase);
+        }}
+        className="rounded-md border border-gray-200 p-1 text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+      >
+        <Plus className="w-3 h-3" />
+      </button>
+    </div>
+    <div className="flex-1 space-y-2 overflow-y-auto px-3 py-2">
+      {tasks.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 p-3 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          Drag tasks here
+        </div>
+      ) : (
+        tasks.map((task) => (
+          <motion.div
+            key={task.id}
+            layout
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.setData('application/task-id', task.id);
+              event.dataTransfer.effectAllowed = 'move';
+            }}
+            onClick={() => onOpenTask(task)}
+            className="cursor-grab rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs shadow-sm transition hover:border-indigo-400 dark:border-gray-700 dark:bg-[#0F1115] dark:text-gray-100"
+          >
+            <div className="font-medium text-gray-700 dark:text-gray-100">{task.label}</div>
+            <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-gray-500 dark:text-gray-400">
+              {task.owner && <span>Owner: {task.owner}</span>}
+              {task.dueDate && <span>Due: {task.dueDate}</span>}
+              {task.priority && <span>Priority: {task.priority}</span>}
+            </div>
+          </motion.div>
+        ))
+      )}
+    </div>
+  </div>
+);
+
+PhaseColumn.propTypes = {
+  phase: PropTypes.string.isRequired,
+  tasks: PropTypes.array.isRequired,
+  onDropTask: PropTypes.func.isRequired,
+  onDragStartPhase: PropTypes.func.isRequired,
+  onDragOverPhase: PropTypes.func.isRequired,
+  onDragEndPhase: PropTypes.func.isRequired,
+  groupingEnabled: PropTypes.bool,
+  onAddTask: PropTypes.func.isRequired,
+  onOpenTask: PropTypes.func.isRequired,
+};
+
+PhaseColumn.defaultProps = {
+  groupingEnabled: false,
+};
+
+const TimelineView = ({
+  projects,
+  tiles,
+  meetings,
+  selectedProjectId,
   onProjectChange,
   onProjectEdit,
   onProjectCreate,
   onProjectDelete,
+  onProjectReorder,
   onTaskCreate,
   onTaskClick,
   updateTask,
-  removeTask
+  removeTask,
+  phases,
+  onPhaseReorder,
+  onMeetingCreate,
+  onMeetingUpdate,
+  onMeetingDelete,
+  onLinkTaskToMeeting,
+  onUnlinkTaskFromMeeting,
+  onAttachmentUpload,
+  onAttachmentDownload,
+  onAttachmentDelete,
+  attachmentDirStatus,
+  attachmentDirName,
 }) => {
   const [timeRange, setTimeRange] = useState('month');
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate] = useState(new Date());
   const [selectedTaskInfo, setSelectedTaskInfo] = useState(null);
-  const [viewMode, setViewMode] = useState('tasks'); // 'tasks' or 'meetings'
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+  const [createTaskContext, setCreateTaskContext] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  // Use effective date: dueDate for open tasks; completedAt for done
-  const [ownerFilter, setOwnerFilter] = useState([]); // array of owners
-  const [tagFilter, setTagFilter] = useState([]); // array of tags
-  const [categoryFilter, setCategoryFilter] = useState([]); // array of categories (tile titles)
-  const [priorityFilter, setPriorityFilter] = useState([]); // array of priorities: low|normal|high|urgent
+  const [ownerFilter, setOwnerFilter] = useState([]);
+  const [tagFilter, setTagFilter] = useState([]);
+  const [phaseFilter, setPhaseFilter] = useState([]);
+  const [priorityFilter, setPriorityFilter] = useState([]);
+  const [draggingProjectId, setDraggingProjectId] = useState(null);
+  const [dragOverProjectId, setDragOverProjectId] = useState(null);
+  const [viewMode, setViewMode] = useState('tasks'); // 'tasks' | 'meetings'
+  const [groupingMode, setGroupingMode] = useState('time'); // 'time' | 'phases'
+  const [showAttachments, setShowAttachments] = useState(false);
+  const [editingMeetingId, setEditingMeetingId] = useState(null);
+  const [phaseDrag, setPhaseDrag] = useState({ active: null, over: null });
 
-  const allActivities = getAllProjectActivities(selectedProjectId, tiles, meetings);
+  const activeProject = useMemo(() => {
+    return projects.find((project) => project.id === selectedProjectId) || projects[0];
+  }, [projects, selectedProjectId]);
 
-  const taskActivities = useMemo(() => allActivities.filter(a => a.type === 'task'), [allActivities]);
-  const meetingActivities = useMemo(() => allActivities.filter(a => a.type === 'meeting'), [allActivities]);
+  const meetingsForProject = useMemo(
+    () => meetings.filter((meeting) => meeting.projectId === (activeProject?.id || 'proj-default')),
+    [meetings, activeProject]
+  );
+
+  const meetingMap = useMemo(() => new Map(meetingsForProject.map((m) => [m.id, m])), [meetingsForProject]);
+
+  const taskLookup = useMemo(() => {
+    const map = new Map();
+    tiles.forEach((tile) => {
+      if (tile.projectId !== (activeProject?.id || 'proj-default')) return;
+      tile.tasks.forEach((task) => {
+        map.set(task.id, { task, tileId: tile.id, tileTitle: tile.title });
+      });
+    });
+    return map;
+  }, [tiles, activeProject]);
+
+  const allActivities = useMemo(
+    () => getAllProjectActivities(activeProject?.id || 'proj-default', tiles, meetings),
+    [activeProject, tiles, meetings]
+  );
+
+  const taskActivities = useMemo(() => allActivities.filter((a) => a.type === 'task'), [allActivities]);
+  const meetingActivities = useMemo(() => allActivities.filter((a) => a.type === 'meeting'), [allActivities]);
 
   const taskFilterOptions = useMemo(() => {
     const owners = new Set();
     const tags = new Set();
     const categories = new Set();
     const priorities = new Set(['low', 'normal', 'high', 'urgent']);
-    taskActivities.forEach(t => {
+    taskActivities.forEach((t) => {
       if (t.owner) owners.add(t.owner);
-      if (Array.isArray(t.tags)) t.tags.forEach(tag => tags.add(tag));
-      if (t.tileTitle) categories.add(t.tileTitle);
+      if (Array.isArray(t.tags)) t.tags.forEach((tag) => tags.add(tag));
+      if (t.category || t.tileTitle) categories.add(t.category || t.tileTitle || 'Unassigned');
     });
     return {
       owners: Array.from(owners),
@@ -56,46 +191,69 @@ const TimelineView = ({
     };
   }, [taskActivities]);
 
-  const isTaskOverdue = (t) => {
-    if (t.done) return false;
-    const due = t.dueDate;
-    if (!due) return false;
-    try { return parseISO(due) < new Date(); } catch { return false; }
+  const isTaskOverdue = (task) => {
+    if (task.done) return false;
+    if (!task.dueDate) return false;
+    try {
+      return parseISO(task.dueDate) < new Date();
+    } catch {
+      return false;
+    }
   };
 
-  const getTaskDateForGrouping = (t) => {
-    return t.done && t.completedAt ? t.completedAt : (t.dueDate || null);
-  };
-
-  const filteredTasksForGrouping = useMemo(() => {
-    // Apply selected filters
-    const matchesFilters = (t) => {
-      if (ownerFilter.length && (!t.owner || !ownerFilter.includes(t.owner))) return false;
+  const filteredTasks = useMemo(() => {
+    const matchFilters = (task) => {
+      if (ownerFilter.length && (!task.owner || !ownerFilter.includes(task.owner))) return false;
       if (priorityFilter.length) {
-        const priority = t.priority || (t.prio ? 'high' : 'normal');
+        const priority = task.priority || (task.prio ? 'high' : 'normal');
         if (!priorityFilter.includes(priority)) return false;
       }
-      if (categoryFilter.length) {
-        const cat = t.tileTitle || t.category || '';
-        if (!categoryFilter.includes(cat)) return false;
+      if (phaseFilter.length) {
+        const phase = task.category || task.tileTitle || 'Unassigned';
+        if (!phaseFilter.includes(phase)) return false;
       }
       if (tagFilter.length) {
-        const tTags = Array.isArray(t.tags) ? t.tags : [];
-        if (!tTags.some(tag => tagFilter.includes(tag))) return false;
+        const tags = Array.isArray(task.tags) ? task.tags : [];
+        if (!tags.some((tag) => tagFilter.includes(tag))) return false;
       }
       return true;
     };
 
     return taskActivities
-      .filter(matchesFilters)
-      .map(t => ({ ...t, date: getTaskDateForGrouping(t), overdue: isTaskOverdue(t) }))
-      .filter(t => !!t.date);
-  }, [taskActivities, ownerFilter, tagFilter, categoryFilter, priorityFilter]);
+      .map((task) => ({
+        ...task,
+        date: task.done && task.completedAt ? task.completedAt : task.dueDate || task.date || null,
+        overdue: isTaskOverdue(task),
+      }))
+      .filter((task) => matchFilters(task));
+  }, [taskActivities, ownerFilter, priorityFilter, phaseFilter, tagFilter]);
 
   const groupedActivities = useMemo(() => {
-    const source = viewMode === 'tasks' ? filteredTasksForGrouping : meetingActivities;
+    const source = viewMode === 'tasks' ? filteredTasks : meetingActivities;
     return groupActivitiesByTimeRange(source, timeRange, selectedDate);
-  }, [filteredTasksForGrouping, meetingActivities, timeRange, selectedDate, viewMode]);
+  }, [filteredTasks, meetingActivities, timeRange, selectedDate, viewMode]);
+
+  const phaseOrder = phases && phases.length ? phases : ['Conceptual', 'Design', 'Validation', 'Startup'];
+
+  const tasksByPhase = useMemo(() => {
+    const map = new Map();
+    phaseOrder.forEach((phase) => map.set(phase, []));
+    const unassigned = [];
+    filteredTasks.forEach((task) => {
+      const phase = task.category || task.tileTitle;
+      if (phase && map.has(phase)) {
+        map.get(phase).push(task);
+      } else {
+        unassigned.push(task);
+      }
+    });
+    return { map, unassigned };
+  }, [filteredTasks, phaseOrder]);
+
+  const attachmentsForProject = useMemo(() => {
+    const items = Array.isArray(activeProject?.attachments) ? activeProject.attachments : [];
+    return [...items].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [activeProject]);
 
   const handleActivityClick = (activity) => {
     if (activity.type === 'task') {
@@ -104,15 +262,84 @@ const TimelineView = ({
     onTaskClick && onTaskClick(activity);
   };
 
-  const handleCreateTask = (taskData) => {
-    if (onTaskCreate) {
-      onTaskCreate(taskData);
-    }
-    setShowCreateTaskModal(false);
+  const openCreateTaskModal = (context) => {
+    setCreateTaskContext(context);
+    setShowCreateTaskModal(true);
   };
 
-  const handleAddTask = () => {
-    setShowCreateTaskModal(true);
+  const handleCreateTask = (taskData) => {
+    if (!onTaskCreate) return;
+    const payload = {
+      ...taskData,
+      projectId: createTaskContext?.projectId || activeProject?.id || 'proj-default',
+      category: createTaskContext?.phase || taskData.category || '',
+    };
+    const result = onTaskCreate(payload);
+    if (result && createTaskContext?.meetingId) {
+      onLinkTaskToMeeting(createTaskContext.meetingId, result.task.id);
+    }
+    setShowCreateTaskModal(false);
+    setCreateTaskContext(null);
+  };
+
+  const handleTaskDropToPhase = (event, phase) => {
+    event.preventDefault();
+    const taskId = event.dataTransfer.getData('application/task-id');
+    if (!taskId) return;
+    const context = taskLookup.get(taskId);
+    if (!context) return;
+    updateTask && updateTask(context.tileId, taskId, { category: phase });
+  };
+
+  const handlePhaseDragStart = (event, phase) => {
+    if (!onPhaseReorder) return;
+    event.dataTransfer.effectAllowed = 'move';
+    setPhaseDrag({ active: phase, over: null });
+  };
+
+  const handlePhaseDragOver = (event, phase) => {
+    if (!onPhaseReorder || !phaseDrag.active || phaseDrag.active === phase) return;
+    event.preventDefault();
+    setPhaseDrag((prev) => ({ ...prev, over: phase }));
+  };
+
+  const handlePhaseDragEnd = () => {
+    if (!onPhaseReorder || !phaseDrag.active || !phaseDrag.over) {
+      setPhaseDrag({ active: null, over: null });
+      return;
+    }
+    const sourceIndex = phaseOrder.findIndex((phase) => phase === phaseDrag.active);
+    const targetIndex = phaseOrder.findIndex((phase) => phase === phaseDrag.over);
+    if (sourceIndex !== -1 && targetIndex !== -1 && sourceIndex !== targetIndex) {
+      onPhaseReorder(sourceIndex, targetIndex);
+    }
+    setPhaseDrag({ active: null, over: null });
+  };
+
+  const handleReorderProjects = (sourceId, targetId) => {
+    if (!onProjectReorder) return;
+    if (sourceId === targetId) return;
+    onProjectReorder(sourceId, targetId);
+    setDraggingProjectId(null);
+    setDragOverProjectId(null);
+  };
+
+  const handleAddAttachment = async (meetingId) => {
+    const projectId = activeProject?.id || 'proj-default';
+    if (!onAttachmentUpload) return;
+    await onAttachmentUpload({ projectId, meetingId, files: [] });
+  };
+
+  const editingMeeting = editingMeetingId ? meetingMap.get(editingMeetingId) : null;
+
+  const attachmentUsageMessage = () => {
+    if (attachmentDirStatus === 'not-configured') {
+      return 'Select a folder in Settings to enable attachment syncing.';
+    }
+    if (attachmentDirStatus === 'denied') {
+      return 'Permission to access the attachment folder was denied. Re-authorize in Settings.';
+    }
+    return '';
   };
 
   return (
@@ -122,309 +349,516 @@ const TimelineView = ({
         <div className="w-80 bg-white rounded-xl shadow-md p-3.5 mr-4 dark:bg-[#0F1115] dark:border dark:border-gray-800">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Projects</h3>
-            <button
-              onClick={onProjectCreate}
-              className="text-gray-500 hover:text-gray-300"
-            >
+            <button onClick={onProjectCreate} className="text-gray-500 hover:text-gray-300">
               <Plus className="w-4 h-4" />
             </button>
           </div>
-          
           <div className="space-y-2 text-xs">
-            {projects.map(project => (
-              <div
-                key={project.id}
-                className={`p-2.5 rounded-md cursor-pointer transition-colors text-gray-700 dark:text-gray-300 border ${
-                  selectedProjectId === project.id 
-                    ? 'bg-gray-50 border-gray-300 dark:bg-[#1A1D24] dark:border-gray-700' 
-                    : 'bg-white border-transparent hover:bg-gray-50 dark:bg-[#0F1115] dark:hover:bg-[#1A1D24]'
-                }`}
-                onClick={() => onProjectChange(project.id)}
-                onDoubleClick={() => onProjectEdit(project)}
-              >
-                <div className="flex items-center space-x-3">
-                  <div 
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: project.color }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm truncate dark:text-gray-200">{project.name}</h4>
-                    <p className="text-xs text-gray-500 truncate dark:text-gray-400">{project.description}</p>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <div className="text-xs text-gray-400 dark:text-gray-500">
-                      {getAllProjectActivities(project.id, tiles, meetings).length}
+            {projects.map((project) => {
+              const isSelected = project.id === activeProject?.id;
+              const isDragOver = dragOverProjectId === project.id && draggingProjectId && draggingProjectId !== project.id;
+              return (
+                <div
+                  key={project.id}
+                  draggable={Boolean(onProjectReorder)}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('application/project-id', project.id);
+                    setDraggingProjectId(project.id);
+                  }}
+                  onDragOver={(event) => {
+                    if (!draggingProjectId || draggingProjectId === project.id) return;
+                    event.preventDefault();
+                    setDragOverProjectId(project.id);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const sourceId = draggingProjectId || event.dataTransfer.getData('application/project-id');
+                    handleReorderProjects(sourceId, project.id);
+                  }}
+                  onDragLeave={() => setDragOverProjectId((prev) => (prev === project.id ? null : prev))}
+                  className={`p-2.5 rounded-md border transition ${
+                    isSelected
+                      ? 'bg-gray-50 border-gray-300 dark:bg-[#1A1D24] dark:border-gray-700'
+                      : 'bg-white border-transparent hover:bg-gray-50 dark:bg-[#0F1115] dark:hover:bg-[#1A1D24]'
+                  } ${isDragOver ? 'ring-2 ring-indigo-400' : ''}`}
+                  onClick={() => onProjectChange(project.id)}
+                  onDoubleClick={() => onProjectEdit(project)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: project.color }} />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sm truncate text-gray-700 dark:text-gray-200">{project.name}</h4>
+                      <p className="text-xs text-gray-500 truncate dark:text-gray-400">{project.description}</p>
                     </div>
                     {project.id !== 'proj-default' && (
-                      <>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onProjectEdit(project);
-                          }}
-                          className="p-1 text-gray-400 hover:text-gray-200 rounded dark:hover:bg-[#1A1D24]"
-                          title="Edit project"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('Delete this project?')) onProjectDelete(project.id);
-                          }}
-                          className="p-1 text-gray-400 hover:text-red-400 rounded dark:hover:bg-[#1A1D24]"
-                          title="Delete project"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </>
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onProjectDelete(project.id);
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-400"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        {/* Timeline View */}
+        {/* Main content */}
         <div className="flex-1 bg-white rounded-xl shadow-md p-4 dark:bg-[#0F1115] dark:border dark:border-gray-800">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-medium tracking-wide text-gray-500 dark:text-gray-400 uppercase">Timeline</h2>
-            
-            <div className="flex items-center space-x-3 text-xs">
-              {/* View Mode Toggle */}
-              <div className="flex bg-gray-100 rounded-lg p-1 dark:bg-[#1A1D24]">
-                <button
-                  className={`flex items-center px-3 py-1 text-sm rounded-md transition-colors ${
-                    viewMode === 'tasks' 
-                      ? 'bg-white text-gray-900 shadow-sm dark:bg-[#232734] dark:text-gray-100 border border-gray-200 dark:border-gray-700' 
-                      : 'text-gray-600 hover:text-gray-800 dark:text-gray-300'
-                  }`}
-                  onClick={() => setViewMode('tasks')}
-                >
-                  <List className="w-4 h-4 mr-1" />
-                  Tasks
-                </button>
-                <button
-                  className={`flex items-center px-3 py-1 text-sm rounded-md transition-colors ${
-                    viewMode === 'meetings' 
-                      ? 'bg-white text-gray-900 shadow-sm dark:bg-[#232734] dark:text-gray-100 border border-gray-200 dark:border-gray-700' 
-                      : 'text-gray-600 hover:text-gray-800 dark:text-gray-300'
-                  }`}
-                  onClick={() => setViewMode('meetings')}
-                >
-                  <Calendar className="w-4 h-4 mr-1" />
-                  Meetings
-                </button>
-              </div>
-
-              {/* Time Range Selector */}
-              <div className="flex bg-gray-100 rounded-lg p-1 dark:bg-[#1A1D24]">
-                {['week', 'month', 'quarter', 'year'].map(range => (
-                  <button
-                    key={range}
-                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                      timeRange === range 
-                        ? 'bg-white text-purple-700 shadow-sm dark:bg-white dark:text-purple-700' 
-                        : 'text-gray-600 hover:text-gray-800 dark:text-gray-300'
-                    }`}
-                    onClick={() => setTimeRange(range)}
-                  >
-                    {range.charAt(0).toUpperCase() + range.slice(1)}
-                  </button>
-                ))}
-              </div>
-
-              {/* Group By removed per requirement; timeline uses effective date */}
-
-              {/* Filters */}
-              {viewMode === 'tasks' && (
-                <div className="relative">
-                  <button
-                    onClick={() => setFiltersOpen(v => !v)}
-                    className="flex items-center px-3 py-2 bg-gray-100 rounded-lg text-gray-800 hover:bg-gray-200 dark:bg-[#1A1D24] dark:text-gray-200 dark:hover:bg-[#232734] border border-gray-200 dark:border-gray-700"
-                  >
-                    <Filter className="w-4 h-4 mr-1" /> Filters
-                    <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {filtersOpen && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-10 p-3 space-y-3 dark:bg-[#0F1115] dark:border-gray-800">
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 mb-1">Owner</div>
-                        <div className="flex flex-wrap gap-2 max-h-24 overflow-auto">
-                          {taskFilterOptions.owners.length === 0 && (
-                            <span className="text-xs text-gray-400">No owners</span>
-                          )}
-                          {taskFilterOptions.owners.map(owner => {
-                            const active = ownerFilter.includes(owner);
-                            return (
-                              <button
-                                key={owner}
-                                onClick={() => setOwnerFilter(prev => active ? prev.filter(o => o !== owner) : [...prev, owner])}
-                                className={`px-2 py-1 rounded-md border text-xs ${active ? 'bg-gray-100 dark:bg-[#232734] border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-100' : 'bg-transparent border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}
-                              >
-                                {owner}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 mb-1">Tags</div>
-                        <div className="flex flex-wrap gap-2 max-h-24 overflow-auto">
-                          {taskFilterOptions.tags.length === 0 && (
-                            <span className="text-xs text-gray-400">No tags</span>
-                          )}
-                          {taskFilterOptions.tags.map(tag => {
-                            const active = tagFilter.includes(tag);
-                            return (
-                              <button
-                                key={tag}
-                                onClick={() => setTagFilter(prev => active ? prev.filter(t => t !== tag) : [...prev, tag])}
-                                className={`px-2 py-1 rounded-md border text-xs ${active ? 'bg-gray-100 dark:bg-[#232734] border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-100' : 'bg-transparent border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}
-                              >
-                                {tag}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 mb-1">Category</div>
-                        <div className="flex flex-wrap gap-2 max-h-24 overflow-auto">
-                          {taskFilterOptions.categories.length === 0 && (
-                            <span className="text-xs text-gray-400">No categories</span>
-                          )}
-                          {taskFilterOptions.categories.map(cat => {
-                            const active = categoryFilter.includes(cat);
-                            return (
-                              <button
-                                key={cat}
-                                onClick={() => setCategoryFilter(prev => active ? prev.filter(c => c !== cat) : [...prev, cat])}
-                                className={`px-2 py-1 rounded-md border text-xs ${active ? 'bg-gray-100 dark:bg-[#232734] border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-100' : 'bg-transparent border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}
-                              >
-                                {cat}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 mb-1">Priority</div>
-                        <div className="flex flex-wrap gap-2">
-                          {taskFilterOptions.priorities.map(p => {
-                            const active = priorityFilter.includes(p);
-                            return (
-                              <button
-                                key={p}
-                                onClick={() => setPriorityFilter(prev => active ? prev.filter(x => x !== p) : [...prev, p])}
-                                className={`px-2 py-1 rounded-md border text-xs capitalize ${active ? 'bg-gray-100 dark:bg-[#232734] border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-100' : 'bg-transparent border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}
-                              >
-                                {p}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2 pt-1 border-t">
-                        <button
-                          className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                          onClick={() => {
-                            setOwnerFilter([]);
-                            setTagFilter([]);
-                            setCategoryFilter([]);
-                            setPriorityFilter([]);
-                          }}
-                        >
-                          Reset
-                        </button>
-                        <button
-                          className="text-sm text-purple-700 hover:text-purple-800"
-                          onClick={() => setFiltersOpen(false)}
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Add Task Button */}
-              {viewMode === 'tasks' && (
-                <button
-                  onClick={handleAddTask}
-                  className="flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-gray-800 bg-white hover:bg-gray-100 transition-colors dark:border-gray-700 dark:text-gray-100 dark:bg-[#1A1D24] dark:hover:bg-[#232734]"
-                >
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Add Task
-                </button>
-              )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
+              <button
+                onClick={() => {
+                  setViewMode('tasks');
+                  setShowAttachments(false);
+                }}
+                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 ${
+                  viewMode === 'tasks' && !showAttachments
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover:bg-[#232734] dark:text-gray-300'
+                }`}
+              >
+                <List className="w-4 h-4" /> Tasks
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode('meetings');
+                  setShowAttachments(false);
+                }}
+                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 ${
+                  viewMode === 'meetings' && !showAttachments
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover:bg-[#232734] dark:text-gray-300'
+                }`}
+              >
+                <Calendar className="w-4 h-4" /> Meetings
+              </button>
+              <button
+                onClick={() => {
+                  setShowAttachments((prev) => !prev);
+                }}
+                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 ${
+                  showAttachments
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover-bg-[#232734] dark:text-gray-300'
+                }`}
+              >
+                <Paperclip className="w-4 h-4" /> Attachments
+              </button>
             </div>
-          </div>
 
-          {/* Timeline Content */}
-          <div className="h-full overflow-y-auto text-gray-800 dark:text-gray-200">
-            {groupedActivities.length === 0 ? (
-              <div className="text-center py-12">
-                <CalendarCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-500 mb-2">
-                  No {viewMode} yet
-                </h3>
-                <p className="text-gray-400">
-                  Start by adding {viewMode === 'tasks' ? 'tasks' : 'meetings'} to this project.
-                </p>
-                {viewMode === 'tasks' && (
+            {viewMode === 'tasks' && !showAttachments && (
+              <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                <div className="flex rounded-lg bg-gray-100 dark:bg-[#1A1D24]">
                   <button
-                    onClick={handleAddTask}
-                    className="mt-4 px-4 py-2 rounded-md border border-gray-300 text-gray-800 bg-white hover:bg-gray-100 transition-colors dark:border-gray-700 dark:text-gray-100 dark:bg-[#1A1D24] dark:hover:bg-[#232734]"
+                    className={`flex items-center gap-1 rounded-md px-3 py-1.5 ${
+                      groupingMode === 'time'
+                        ? 'bg-white text-gray-700 shadow-sm dark:bg-[#232734] dark:text-gray-100'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-300'
+                    }`}
+                    onClick={() => setGroupingMode('time')}
                   >
-                    Add Your First Task
+                    <Calendar className="w-4 h-4" /> Timeline
                   </button>
+                  <button
+                    className={`flex items-center gap-1 rounded-md px-3 py-1.5 ${
+                      groupingMode === 'phases'
+                        ? 'bg-white text-gray-700 shadow-sm dark:bg-[#232734] dark:text-gray-100'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-300'
+                    }`}
+                    onClick={() => setGroupingMode('phases')}
+                  >
+                    <Columns className="w-4 h-4" /> Phases
+                  </button>
+                </div>
+
+                {groupingMode === 'time' && (
+                  <div className="flex rounded-lg bg-gray-100 dark:bg-[#1A1D24]">
+                    {['week', 'month', 'quarter', 'year'].map((range) => (
+                      <button
+                        key={range}
+                        className={`px-3 py-1.5 capitalize ${
+                          timeRange === range
+                            ? 'rounded-md bg-white text-gray-700 shadow-sm dark:bg-[#232734] dark:text-gray-100'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-300'
+                        }`}
+                        onClick={() => setTimeRange(range)}
+                      >
+                        {range}
+                      </button>
+                    ))}
+                  </div>
                 )}
+
+                <button
+                  onClick={() => setFiltersOpen((prev) => !prev)}
+                  className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-gray-600 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
+                >
+                  <Filter className="w-4 h-4" /> Filters
+                </button>
+                <button
+                  onClick={() => openCreateTaskModal({ projectId: activeProject?.id })}
+                  className="flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-[#232734]"
+                >
+                  <Plus className="w-4 h-4" /> Add task
+                </button>
               </div>
-            ) : (
-              <div className="space-y-6">
-                {groupedActivities.map((group, index) => (
-                  <TimelineGroup
-                    key={group.period}
-                    group={group}
-                    isCollapsed={index > 0}
-                    onTaskClick={handleActivityClick}
-                    onMeetingClick={handleActivityClick}
-                    onTaskEdit={(activity) => setSelectedTaskInfo({ tileId: activity.tileId, taskId: activity.id })}
-                    onTaskDelete={(activity) => removeTask && removeTask(activity.tileId, activity.id)}
-                  />
-                ))}
+            )}
+
+            {viewMode === 'meetings' && !showAttachments && (
+              <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                {meetingsForProject.length} meeting{meetingsForProject.length === 1 ? '' : 's'} tracked
+              </div>
+            )}
+
+            {showAttachments && (
+              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <FolderOpen className="w-4 h-4" />
+                {attachmentDirStatus === 'granted'
+                  ? `Stored in: ${attachmentDirName || 'Selected folder'}`
+                  : attachmentUsageMessage()}
+                <button
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.multiple = true;
+                    input.onchange = async (event) => {
+                      const files = Array.from(event.target.files || []);
+                      if (!files.length) return;
+                      await onAttachmentUpload({ projectId: activeProject?.id || 'proj-default', meetingId: null, files });
+                    };
+                    input.click();
+                  }}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-600 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
+                  disabled={attachmentDirStatus !== 'granted'}
+                >
+                  Upload
+                </button>
               </div>
             )}
           </div>
+
+          {/* Filters dropdown */}
+          {filtersOpen && !showAttachments && viewMode === 'tasks' && (
+            <div className="relative mt-3">
+              <div className="absolute right-0 z-20 w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-800 dark:bg-[#0F1115]">
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Owner</div>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {taskFilterOptions.owners.length === 0 && (
+                        <span className="text-[11px] text-gray-400">No owners yet</span>
+                      )}
+                      {taskFilterOptions.owners.map((owner) => {
+                        const active = ownerFilter.includes(owner);
+                        return (
+                          <button
+                            key={owner}
+                            onClick={() =>
+                              setOwnerFilter((prev) =>
+                                active ? prev.filter((item) => item !== owner) : [...prev, owner]
+                              )
+                            }
+                            className={`rounded-md border px-2 py-1 ${
+                              active
+                                ? 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-[#232734] dark:text-gray-100'
+                                : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {owner}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Tags</div>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {taskFilterOptions.tags.length === 0 && <span className="text-[11px] text-gray-400">No tags</span>}
+                      {taskFilterOptions.tags.map((tag) => {
+                        const active = tagFilter.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() =>
+                              setTagFilter((prev) =>
+                                active ? prev.filter((item) => item !== tag) : [...prev, tag]
+                              )
+                            }
+                            className={`rounded-md border px-2 py-1 ${
+                              active
+                                ? 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-[#232734] dark:text-gray-100'
+                                : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Phase</div>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {taskFilterOptions.categories.length === 0 && <span className="text-[11px] text-gray-400">No phases</span>}
+                      {taskFilterOptions.categories.map((cat) => {
+                        const active = phaseFilter.includes(cat);
+                        return (
+                          <button
+                            key={cat}
+                            onClick={() =>
+                              setPhaseFilter((prev) =>
+                                active ? prev.filter((item) => item !== cat) : [...prev, cat]
+                              )
+                            }
+                            className={`rounded-md border px-2 py-1 ${
+                              active
+                                ? 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-[#232734] dark:text-gray-100'
+                                : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Priority</div>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {taskFilterOptions.priorities.map((priority) => {
+                        const active = priorityFilter.includes(priority);
+                        return (
+                          <button
+                            key={priority}
+                            onClick={() =>
+                              setPriorityFilter((prev) =>
+                                active ? prev.filter((item) => item !== priority) : [...prev, priority]
+                              )
+                            }
+                            className={`rounded-md border px-2 py-1 capitalize ${
+                              active
+                                ? 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-[#232734] dark:text-gray-100'
+                                : 'border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {priority}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 border-t pt-2">
+                    <button
+                      onClick={() => {
+                        setOwnerFilter([]);
+                        setTagFilter([]);
+                        setPhaseFilter([]);
+                        setPriorityFilter([]);
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={() => setFiltersOpen(false)}
+                      className="text-xs text-indigo-600 hover:text-indigo-500"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 h-[calc(100%-4rem)] overflow-y-auto text-gray-800 dark:text-gray-200">
+            {showAttachments ? (
+              <div className="space-y-3">
+                {attachmentsForProject.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-400">
+                    No attachments yet.
+                  </div>
+                ) : (
+                  attachmentsForProject.map((attachment) => {
+                    const meetingTitle = attachment.meetingId ? meetingMap.get(attachment.meetingId)?.title : null;
+                    return (
+                      <div key={attachment.id} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm dark:border-gray-800 dark:bg-[#10131A]">
+                        <div>
+                          <div className="font-medium text-gray-700 dark:text-gray-100">{attachment.name}</div>
+                          <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                            {(Math.round((attachment.size || 0) / 102.4) / 10).toFixed(1)} KB
+                            {meetingTitle ? ` • From meeting: ${meetingTitle}` : ''}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => onAttachmentDownload(attachment)}
+                            className="rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                          >
+                            Open
+                          </button>
+                          <button
+                            onClick={() => onAttachmentDelete(attachment)}
+                            className="rounded-md border border-red-200 px-3 py-1 text-xs text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : viewMode === 'tasks' ? (
+              groupingMode === 'phases' ? (
+                <div className="flex gap-3 overflow-x-auto py-2">
+                  {phaseOrder.map((phase) => (
+                    <PhaseColumn
+                      key={phase}
+                      phase={phase}
+                      tasks={tasksByPhase.map.get(phase) || []}
+                      onDropTask={handleTaskDropToPhase}
+                      onDragStartPhase={handlePhaseDragStart}
+                      onDragOverPhase={handlePhaseDragOver}
+                      onDragEndPhase={handlePhaseDragEnd}
+                      groupingEnabled={Boolean(onPhaseReorder)}
+                      onAddTask={(phaseName) =>
+                        openCreateTaskModal({
+                          projectId: activeProject?.id,
+                          phase: phaseName === 'Unassigned' ? undefined : phaseName,
+                        })
+                      }
+                      onOpenTask={(task) => {
+                        const context = taskLookup.get(task.id);
+                        if (context) setSelectedTaskInfo({ tileId: context.tileId, taskId: task.id });
+                      }}
+                    />
+                  ))}
+                  {tasksByPhase.unassigned.length > 0 && (
+                    <PhaseColumn
+                      phase="Unassigned"
+                      tasks={tasksByPhase.unassigned}
+                      onDropTask={handleTaskDropToPhase}
+                      onDragStartPhase={handlePhaseDragStart}
+                      onDragOverPhase={handlePhaseDragOver}
+                      onDragEndPhase={handlePhaseDragEnd}
+                      groupingEnabled={false}
+                      onAddTask={(phaseName) =>
+                        openCreateTaskModal({
+                          projectId: activeProject?.id,
+                          phase: phaseName === 'Unassigned' ? undefined : phaseName,
+                        })
+                      }
+                      onOpenTask={(task) => {
+                        const context = taskLookup.get(task.id);
+                        if (context) setSelectedTaskInfo({ tileId: context.tileId, taskId: task.id });
+                      }}
+                    />
+                  )}
+                </div>
+              ) : groupedActivities.length === 0 ? (
+                <div className="text-center py-12">
+                  <CalendarCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-500 mb-2">No tasks yet</h3>
+                  <p className="text-gray-400">Start by adding tasks to this project.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {groupedActivities.map((group, index) => (
+                    <TimelineGroup
+                      key={group.period}
+                      group={group}
+                      isCollapsed={index > 0}
+                      onTaskClick={handleActivityClick}
+                      onMeetingClick={handleActivityClick}
+                      onTaskEdit={(activity) => setSelectedTaskInfo({ tileId: activity.tileId, taskId: activity.id })}
+                      onTaskDelete={(activity) => removeTask && removeTask(activity.tileId, activity.id)}
+                    />
+                  ))}
+                </div>
+              )
+            ) : (
+              <MeetingBoard
+                meetings={meetingsForProject}
+                onCreate={() => {
+                  const meetingId = onMeetingCreate(activeProject?.id || 'proj-default');
+                  setEditingMeetingId(meetingId);
+                }}
+                onEdit={setEditingMeetingId}
+                onDelete={(meetingId) => {
+                  if (confirm('Delete this meeting and its attachments?')) {
+                    onMeetingDelete(meetingId);
+                    setEditingMeetingId((prev) => (prev === meetingId ? null : prev));
+                  }
+                }}
+                attachmentResolver={(meeting) => meeting.attachments || []}
+              />
+            )}
+          </div>
         </div>
-
-        {/* Create Task Modal */}
-        {showCreateTaskModal && (
-          <CreateTaskModal
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            onSave={handleCreateTask}
-            onClose={() => setShowCreateTaskModal(false)}
-          />
-        )}
-
-        {/* Edit Task Modal */}
-        {selectedTaskInfo && (
-          <TaskModal
-            tileId={selectedTaskInfo.tileId}
-            taskId={selectedTaskInfo.taskId}
-            tiles={tiles}
-            projects={projects}
-            updateTask={updateTask}
-            onClose={() => setSelectedTaskInfo(null)}
-          />
-        )}
       </div>
+
+      {showCreateTaskModal && (
+        <CreateTaskModal
+          projects={projects}
+          selectedProjectId={createTaskContext?.projectId || activeProject?.id}
+          onSave={handleCreateTask}
+          onClose={() => {
+            setShowCreateTaskModal(false);
+            setCreateTaskContext(null);
+          }}
+          phases={phases}
+        />
+      )}
+
+      {selectedTaskInfo && (
+        <TaskModal
+          tileId={selectedTaskInfo.tileId}
+          taskId={selectedTaskInfo.taskId}
+          tiles={tiles}
+          projects={projects}
+          updateTask={updateTask}
+          onClose={() => setSelectedTaskInfo(null)}
+          phases={phases}
+        />
+      )}
+
+      {editingMeeting && (
+        <MeetingEditor
+          meeting={editingMeeting}
+          onClose={() => setEditingMeetingId(null)}
+          onSave={(meetingId, updates) => onMeetingUpdate(meetingId, updates)}
+          onDelete={(meetingId) => {
+            onMeetingDelete(meetingId);
+            setEditingMeetingId(null);
+          }}
+          onAddTask={(meetingId) =>
+            openCreateTaskModal({ projectId: editingMeeting.projectId, meetingId })
+          }
+          onEditTask={(tileId, taskId) => setSelectedTaskInfo({ tileId, taskId })}
+          onUnlinkTask={(meetingId, taskId) => onUnlinkTaskFromMeeting(meetingId, taskId)}
+          onDeleteTask={(tileId, taskId, meetingId) => {
+            removeTask && removeTask(tileId, taskId);
+            onUnlinkTaskFromMeeting(meetingId, taskId);
+          }}
+          taskLookup={taskLookup}
+          onAttachmentUpload={onAttachmentUpload}
+          onAttachmentDownload={onAttachmentDownload}
+          onAttachmentDelete={onAttachmentDelete}
+          attachmentDirStatus={attachmentDirStatus}
+        />
+      )}
     </div>
   );
 };
@@ -437,10 +871,35 @@ TimelineView.propTypes = {
   onProjectChange: PropTypes.func.isRequired,
   onProjectEdit: PropTypes.func.isRequired,
   onProjectCreate: PropTypes.func.isRequired,
+  onProjectDelete: PropTypes.func.isRequired,
+  onProjectReorder: PropTypes.func,
   onTaskCreate: PropTypes.func,
   onTaskClick: PropTypes.func,
   updateTask: PropTypes.func,
   removeTask: PropTypes.func,
+  phases: PropTypes.arrayOf(PropTypes.string),
+  onPhaseReorder: PropTypes.func,
+  onMeetingCreate: PropTypes.func.isRequired,
+  onMeetingUpdate: PropTypes.func.isRequired,
+  onMeetingDelete: PropTypes.func.isRequired,
+  onLinkTaskToMeeting: PropTypes.func.isRequired,
+  onUnlinkTaskFromMeeting: PropTypes.func.isRequired,
+  onAttachmentUpload: PropTypes.func.isRequired,
+  onAttachmentDownload: PropTypes.func.isRequired,
+  onAttachmentDelete: PropTypes.func.isRequired,
+  attachmentDirStatus: PropTypes.string.isRequired,
+  attachmentDirName: PropTypes.string,
+};
+
+TimelineView.defaultProps = {
+  phases: undefined,
+  onProjectReorder: undefined,
+  onTaskCreate: undefined,
+  onTaskClick: undefined,
+  updateTask: undefined,
+  removeTask: undefined,
+  onPhaseReorder: undefined,
+  attachmentDirName: '',
 };
 
 export default TimelineView;

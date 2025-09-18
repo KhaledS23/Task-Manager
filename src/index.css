@@ -38,5 +38,19 @@
 .chat-content pre { background: #0e1116; color: #e5e7eb; padding: 0.75rem; border-radius: 0.5rem; overflow: auto; border: 1px solid rgba(255,255,255,0.08); }
 .chat-content code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.85rem; }
 .code-wrap { position: relative; }
+
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body.light-theme {
+  background-color: #f4f6fb;
+  color: #1f2937;
+}
+
+body.dark-theme {
+  background-color: #05070c;
+  color: #e5e7eb;
+}
 .code-copy { position: absolute; top: 0.35rem; right: 0.35rem; opacity: 0; transition: opacity 0.2s ease; background: rgba(31,35,42,0.85); color: #e5e7eb; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.375rem; padding: 0.15rem 0.4rem; font-size: 0.75rem; }
 .code-wrap:hover .code-copy { opacity: 1; }

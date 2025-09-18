@@ -62,55 +62,69 @@ export const useTasks = () => {
   };
 
   const createTask = (taskData) => {
-    const newTask = {
-      id: taskData.id || generateId('task'),
-      label: taskData.label,
-      description: taskData.description || '',
-      owner: taskData.owner || '',
-      date: taskData.date || null,
-      dueDate: taskData.dueDate || null,
-      prio: taskData.prio || false,
-      done: taskData.done || false,
-      priority: taskData.priority || 'normal',
-      status: taskData.status || 'todo',
-      category: taskData.category || '',
-      tags: taskData.tags || [],
-      estimatedHours: taskData.estimatedHours || '',
-      actualHours: taskData.actualHours || '',
-      createdAt: taskData.createdAt || new Date().toISOString(),
-      updatedAt: taskData.updatedAt || new Date().toISOString(),
-    };
+    let createdTask = null;
+    let finalTileId = null;
+    const projectId = taskData.projectId || 'proj-default';
+    const category = taskData.category || 'General';
 
-    // Find or create a tile for this task
-    let targetTileId = null;
-    const existingTile = tiles.find(tile => 
-      tile.projectId === taskData.projectId && 
-      (tile.title === taskData.category || tile.title === 'New Task')
-    );
-
-    if (existingTile) {
-      targetTileId = existingTile.id;
-    } else {
-      // Create a new tile
-      const newTile = {
-        id: generateId('tile'),
-        title: taskData.category || 'New Task',
-        tasks: [],
-        projectId: taskData.projectId || 'proj-default',
+    setTiles((prev) => {
+      const newTask = {
+        id: taskData.id || generateId('task'),
+        label: taskData.label,
+        description: taskData.description || '',
+        owner: taskData.owner || '',
+        date: taskData.date || null,
+        dueDate: taskData.dueDate || null,
+        prio: taskData.prio || false,
+        done: taskData.done || false,
+        priority: taskData.priority || 'normal',
+        status: taskData.status || 'todo',
+        category,
+        tags: taskData.tags || [],
+        estimatedHours: taskData.estimatedHours || '',
+        actualHours: taskData.actualHours || '',
+        createdAt: taskData.createdAt || new Date().toISOString(),
+        updatedAt: taskData.updatedAt || new Date().toISOString(),
       };
-      setTiles(prev => [...prev, newTile]);
-      targetTileId = newTile.id;
-    }
 
-    // Add the task to the target tile
-    setTiles(prev => prev.map(tile => 
-      tile.id === targetTileId 
-        ? { 
-            ...tile, 
-            tasks: [...tile.tasks, newTask]
-          } 
-        : tile
-    ));
+      let tilesDraft = [...prev];
+      let tileIndex = tilesDraft.findIndex(
+        (tile) => tile.projectId === projectId && tile.title === category
+      );
+
+      if (tileIndex === -1) {
+        tileIndex = tilesDraft.findIndex(
+          (tile) => tile.projectId === projectId && tile.title === 'New Task'
+        );
+      }
+
+      if (tileIndex === -1) {
+        const newTile = {
+          id: generateId('tile'),
+          title: category,
+          tasks: [],
+          projectId,
+        };
+        tilesDraft = [...tilesDraft, newTile];
+        tileIndex = tilesDraft.length - 1;
+      }
+
+      const tile = tilesDraft[tileIndex];
+      finalTileId = tile.id;
+      createdTask = newTask;
+
+      tilesDraft[tileIndex] = {
+        ...tile,
+        projectId,
+        tasks: [...tile.tasks, newTask],
+      };
+
+      return tilesDraft;
+    });
+
+    return createdTask && finalTileId
+      ? { task: createdTask, tileId: finalTileId }
+      : null;
   };
 
   const removeTask = (tileId, taskId) => {

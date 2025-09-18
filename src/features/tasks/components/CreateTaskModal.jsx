@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { X, Calendar, User, Flag, Tag, FileText } from 'lucide-react';
 
@@ -6,8 +6,10 @@ const CreateTaskModal = ({
   projects, 
   selectedProjectId, 
   onSave, 
-  onClose 
+  onClose,
+  phases
 }) => {
+  const availablePhases = useMemo(() => (Array.isArray(phases) && phases.length ? phases : ['Conceptual', 'Design', 'Validation', 'Startup']), [phases]);
   const [taskForm, setTaskForm] = useState({
     label: '',
     description: '',
@@ -15,7 +17,7 @@ const CreateTaskModal = ({
     dueDate: '',
     priority: 'normal', // low, normal, high, urgent
     status: 'todo', // todo, in-progress, review, done
-    category: '',
+    category: availablePhases[0] || '',
     tags: [],
     projectId: selectedProjectId || 'proj-default',
   });
@@ -169,15 +171,21 @@ const CreateTaskModal = ({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Category
+                    Phase
                   </label>
-                  <input
-                    type="text"
-                    value={taskForm.category}
-                    onChange={(e) => setTaskForm(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
-                    placeholder="e.g., Development, Design, Research"
-                  />
+                  <div className="relative">
+                    <select
+                      value={taskForm.category}
+                      onChange={(e) => setTaskForm(prev => ({ ...prev, category: e.target.value }))}
+                      className="appearance-none w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
+                    >
+                      {availablePhases.map((phase) => (
+                        <option key={phase} value={phase}>{phase}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">Manage phases from the Settings page.</p>
                 </div>
               </div>
 
@@ -296,9 +304,15 @@ const CreateTaskModal = ({
 
 CreateTaskModal.propTypes = {
   projects: PropTypes.array.isRequired,
-  selectedProjectId: PropTypes.string.isRequired,
+  selectedProjectId: PropTypes.string,
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
+  phases: PropTypes.arrayOf(PropTypes.string),
+};
+
+CreateTaskModal.defaultProps = {
+  selectedProjectId: 'proj-default',
+  phases: ['Conceptual', 'Design', 'Validation', 'Startup'],
 };
 
 export default CreateTaskModal;

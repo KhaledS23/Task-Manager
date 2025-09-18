@@ -76,7 +76,7 @@ const TimelineGroup = ({ group, isCollapsed, onTaskClick, onMeetingClick, onTask
                         >
                           <ChevronDown className={`w-4 h-4 transition-transform ${expandedId === activity.id ? '' : '-rotate-90'}`} />
                         </button>
-                        <h4 className="font-medium text-white truncate dark:text-gray-100 text-[13px]">
+                        <h4 className="font-medium text-gray-900 truncate dark:text-gray-100 text-[13px]">
                           {activity.label || activity.title}
                         </h4>
                       </div>
@@ -92,7 +92,7 @@ const TimelineGroup = ({ group, isCollapsed, onTaskClick, onMeetingClick, onTask
                         <span>Owner: {activity.owner}</span>
                       )}
                       {activity.type === 'task' && activity.tileTitle && (
-                        <span>Category: {activity.tileTitle}</span>
+                        <span>Phase: {activity.tileTitle}</span>
                       )}
                       {activity.type === 'task' && activity.priority && (
                         <span className="capitalize">Priority: {activity.priority}</span>

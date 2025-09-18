@@ -13,10 +13,23 @@ const TimelinePage = ({
   onProjectSave,
   onProjectClose,
   onProjectDelete,
+  onProjectReorder,
   onTaskCreate,
   onTaskClick,
   updateTask,
-  removeTask
+  removeTask,
+  phases,
+  onPhaseReorder,
+  onMeetingCreate,
+  onMeetingUpdate,
+  onMeetingDelete,
+  onLinkTaskToMeeting,
+  onUnlinkTaskFromMeeting,
+  onAttachmentUpload,
+  onAttachmentDownload,
+  onAttachmentDelete,
+  attachmentDirStatus,
+  attachmentDirName,
 }) => {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
@@ -58,12 +71,23 @@ const TimelinePage = ({
         onProjectEdit={handleProjectEdit}
         onProjectCreate={handleProjectCreate}
         onProjectDelete={onProjectDelete}
+        onProjectReorder={onProjectReorder}
         onTaskCreate={onTaskCreate}
         onTaskClick={onTaskClick}
-        tiles={tiles}
-        projects={projects}
         updateTask={updateTask}
         removeTask={removeTask}
+        phases={phases}
+        onPhaseReorder={onPhaseReorder}
+        onMeetingCreate={onMeetingCreate}
+        onMeetingUpdate={onMeetingUpdate}
+        onMeetingDelete={onMeetingDelete}
+        onLinkTaskToMeeting={onLinkTaskToMeeting}
+        onUnlinkTaskFromMeeting={onUnlinkTaskFromMeeting}
+        onAttachmentUpload={onAttachmentUpload}
+        onAttachmentDownload={onAttachmentDownload}
+        onAttachmentDelete={onAttachmentDelete}
+        attachmentDirStatus={attachmentDirStatus}
+        attachmentDirName={attachmentDirName}
       />
       
       {showProjectModal && (

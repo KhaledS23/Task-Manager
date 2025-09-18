@@ -1,146 +1,189 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { generateId } from '../../../shared/utils';
 import { StorageService } from '../../../shared/services';
 
+const STORAGE_KEY = 'workChecklist';
+
+const normalizeMeeting = (meeting) => {
+  if (!meeting) return null;
+  if (!meeting.version || meeting.version < 2) {
+    // Legacy shape with notes array
+    const primaryNote = Array.isArray(meeting.notes) ? meeting.notes[0] : null;
+    return {
+      id: meeting.id,
+      projectId: meeting.projectId || 'proj-default',
+      title: meeting.title || primaryNote?.title || 'Untitled Meeting',
+      date: primaryNote?.date || new Date().toISOString().slice(0, 10),
+      participants: primaryNote?.attendance || '',
+      agenda: primaryNote?.agenda || '',
+      summary: primaryNote?.summary || '',
+      followUps: primaryNote?.actions || '',
+      linkedTaskIds: Array.isArray(primaryNote?.tasks) ? primaryNote.tasks : [],
+      attachments: Array.isArray(meeting.attachments) ? meeting.attachments : [],
+      createdAt: meeting.createdAt || new Date().toISOString(),
+      updatedAt: meeting.updatedAt || new Date().toISOString(),
+      version: 2,
+    };
+  }
+  return meeting;
+};
+
 export const useMeetings = () => {
   const [meetings, setMeetings] = useState(() => {
-    const saved = StorageService.get('workChecklist');
+    const saved = StorageService.get(STORAGE_KEY);
     if (saved && Array.isArray(saved.meetings)) {
-      return saved.meetings;
+      return saved.meetings.map(normalizeMeeting).filter(Boolean);
     }
     return [];
   });
 
-  // Persist meetings to localStorage
+  // Persist meetings to localStorage whenever they change
   useEffect(() => {
-    const saved = StorageService.get('workChecklist', {});
-    StorageService.set('workChecklist', { ...saved, meetings });
+    const saved = StorageService.get(STORAGE_KEY, {});
+    StorageService.set(STORAGE_KEY, { ...saved, meetings });
   }, [meetings]);
 
-  const addMeeting = (title, projectId = 'proj-default') => {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    const now = Date.now();
-    const newMeeting = { 
-      id: generateId('meeting'), 
-      title: trimmed, 
-      notes: [], 
-      attachments: [], 
-      updatedAt: now, 
-      icon: null,
-      projectId: projectId || 'proj-default'
+  const addMeeting = (projectId) => {
+    const now = new Date().toISOString();
+    const meeting = {
+      id: generateId('meeting'),
+      projectId: projectId || 'proj-default',
+      title: 'New Meeting',
+      date: now.slice(0, 10),
+      participants: '',
+      agenda: '',
+      summary: '',
+      followUps: '',
+      linkedTaskIds: [],
+      attachments: [],
+      createdAt: now,
+      updatedAt: now,
+      version: 2,
     };
-    setMeetings(prev => [...prev, newMeeting]);
+    setMeetings((prev) => [...prev, meeting]);
+    return meeting.id;
   };
 
-  const renameMeeting = (meetingId, newTitle) => {
-    const now = Date.now();
-    setMeetings(prev => prev.map(meeting => 
-      meeting.id === meetingId 
-        ? { ...meeting, title: newTitle, updatedAt: now } 
-        : meeting
-    ));
+  const updateMeeting = (meetingId, updates) => {
+    const now = new Date().toISOString();
+    setMeetings((prev) =>
+      prev.map((meeting) =>
+        meeting.id === meetingId
+          ? { ...meeting, ...updates, updatedAt: now }
+          : meeting
+      )
+    );
   };
 
   const removeMeeting = (meetingId) => {
-    setMeetings(prev => prev.filter(meeting => meeting.id !== meetingId));
+    setMeetings((prev) => prev.filter((meeting) => meeting.id !== meetingId));
   };
 
-  const updateMeetingIcon = (meetingId, icon) => {
-    const now = Date.now();
-    setMeetings(prev => prev.map(meeting => 
-      meeting.id === meetingId 
-        ? { ...meeting, icon, updatedAt: now } 
-        : meeting
-    ));
+  const addMeetingAttachment = (meetingId, attachmentMeta) => {
+    setMeetings((prev) =>
+      prev.map((meeting) =>
+        meeting.id === meetingId
+          ? {
+              ...meeting,
+              attachments: [...meeting.attachments, attachmentMeta],
+              updatedAt: new Date().toISOString(),
+            }
+          : meeting
+      )
+    );
   };
 
-  const addMeetingAttachment = (meetingId, attachments) => {
-    setMeetings(prev => prev.map(meeting => {
-      if (meeting.id !== meetingId) return meeting;
-      return { ...meeting, attachments: [...(meeting.attachments || []), ...attachments] };
-    }));
+  const updateMeetingAttachment = (meetingId, attachmentId, updates) => {
+    setMeetings((prev) =>
+      prev.map((meeting) => {
+        if (meeting.id !== meetingId) return meeting;
+        return {
+          ...meeting,
+          attachments: meeting.attachments.map((att) =>
+            att.id === attachmentId ? { ...att, ...updates } : att
+          ),
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
   };
 
   const removeMeetingAttachment = (meetingId, attachmentId) => {
-    setMeetings(prev => prev.map(meeting => {
-      if (meeting.id !== meetingId) return meeting;
-      return { 
-        ...meeting, 
-        attachments: meeting.attachments.filter(att => att.id !== attachmentId) 
-      };
-    }));
+    setMeetings((prev) =>
+      prev.map((meeting) =>
+        meeting.id === meetingId
+          ? {
+              ...meeting,
+              attachments: meeting.attachments.filter((att) => att.id !== attachmentId),
+              updatedAt: new Date().toISOString(),
+            }
+          : meeting
+      )
+    );
   };
 
-  const addNote = (meetingId, noteData) => {
-    const now = Date.now();
-    const newNote = {
-      id: generateId('note'),
-      ...noteData,
-      createdAt: now,
-      updatedAt: now,
-    };
-    setMeetings(prev => prev.map(meeting => 
-      meeting.id === meetingId 
-        ? { 
-            ...meeting, 
-            notes: [...meeting.notes, newNote],
-            updatedAt: now
-          }
-        : meeting
-    ));
+  const linkTaskToMeeting = (meetingId, taskId) => {
+    setMeetings((prev) =>
+      prev.map((meeting) =>
+        meeting.id === meetingId
+          ? {
+              ...meeting,
+              linkedTaskIds: meeting.linkedTaskIds.includes(taskId)
+                ? meeting.linkedTaskIds
+                : [...meeting.linkedTaskIds, taskId],
+              updatedAt: new Date().toISOString(),
+            }
+          : meeting
+      )
+    );
   };
 
-  const updateNote = (meetingId, noteId, updatedFields) => {
-    const now = Date.now();
-    setMeetings(prev => prev.map(meeting => {
-      if (meeting.id !== meetingId) return meeting;
-      return {
-        ...meeting,
-        notes: meeting.notes.map(note => 
-          note.id === noteId 
-            ? { ...note, ...updatedFields, updatedAt: now }
-            : note
-        ),
-        updatedAt: now
-      };
-    }));
-  };
-
-  const removeNote = (meetingId, noteId) => {
-    const now = Date.now();
-    setMeetings(prev => prev.map(meeting => 
-      meeting.id === meetingId 
-        ? { 
-            ...meeting, 
-            notes: meeting.notes.filter(note => note.id !== noteId),
-            updatedAt: now
-          }
-        : meeting
-    ));
+  const unlinkTaskFromMeeting = (meetingId, taskId) => {
+    setMeetings((prev) =>
+      prev.map((meeting) =>
+        meeting.id === meetingId
+          ? {
+              ...meeting,
+              linkedTaskIds: meeting.linkedTaskIds.filter((id) => id !== taskId),
+              updatedAt: new Date().toISOString(),
+            }
+          : meeting
+      )
+    );
   };
 
   const reorderMeetings = (fromIndex, toIndex) => {
-    setMeetings(prev => {
-      const arr = [...prev];
-      const [moved] = arr.splice(fromIndex, 1);
-      arr.splice(toIndex, 0, moved);
-      return arr;
+    setMeetings((prev) => {
+      const list = [...prev];
+      const [moved] = list.splice(fromIndex, 1);
+      list.splice(toIndex, 0, moved);
+      return list;
     });
   };
 
+  const getMeetingsByProject = useMemo(() => {
+    const map = new Map();
+    meetings.forEach((meeting) => {
+      const key = meeting.projectId || 'proj-default';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(meeting);
+    });
+    return map;
+  }, [meetings]);
+
   return {
     meetings,
-    setMeetings,
+    getMeetingsByProject,
     addMeeting,
-    renameMeeting,
+    updateMeeting,
     removeMeeting,
-    updateMeetingIcon,
     addMeetingAttachment,
+    updateMeetingAttachment,
     removeMeetingAttachment,
-    addNote,
-    updateNote,
-    removeNote,
+    linkTaskToMeeting,
+    unlinkTaskFromMeeting,
     reorderMeetings,
+    setMeetings,
   };
 };
+

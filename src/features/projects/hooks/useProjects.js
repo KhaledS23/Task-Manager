@@ -17,7 +17,8 @@ export const useProjects = () => {
         status: 'active',
         startDate: new Date().toISOString().split('T')[0],
         endDate: null,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        attachments: [],
       }
     ];
   });
@@ -37,7 +38,8 @@ export const useProjects = () => {
       status: projectData.status || 'active',
       startDate: projectData.startDate || new Date().toISOString().split('T')[0],
       endDate: projectData.endDate || null,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      attachments: projectData.attachments || [],
     };
     setProjects(prev => [...prev, newProject]);
   };
@@ -53,10 +55,25 @@ export const useProjects = () => {
     setProjects(prev => prev.filter(project => project.id !== projectId));
   };
 
+  const reorderProjects = (sourceId, targetId) => {
+    setProjects((prev) => {
+      const sourceIndex = prev.findIndex((project) => project.id === sourceId);
+      const targetIndex = prev.findIndex((project) => project.id === targetId);
+      if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  };
+
   return {
     projects,
     addProject,
     updateProject,
     deleteProject,
+    reorderProjects,
   };
 };

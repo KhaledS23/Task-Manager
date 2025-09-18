@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { X, Flag, Tag, FileText, Clock } from 'lucide-react';
 
-const TaskModal = ({ tileId, taskId, tiles, projects, updateTask, onClose }) => {
+const DEFAULT_PHASES = ['Conceptual', 'Design', 'Validation', 'Startup'];
+
+const TaskModal = ({ tileId, taskId, tiles, projects, updateTask, onClose, phases }) => {
   const tile = tiles.find((t) => t.id === tileId);
   if (!tile) return null;
   const task = tile.tasks.find((t) => t.id === taskId);
   if (!task) return null;
+  const availablePhases = useMemo(() => {
+    const base = Array.isArray(phases) && phases.length ? [...phases] : [...DEFAULT_PHASES];
+    if (task.category && !base.includes(task.category)) {
+      base.push(task.category);
+    }
+    return base;
+  }, [phases, task.category]);
   
   const [taskForm, setTaskForm] = useState({
     label: task.label,
@@ -15,7 +24,7 @@ const TaskModal = ({ tileId, taskId, tiles, projects, updateTask, onClose }) => 
     dueDate: task.dueDate || '',
     priority: task.priority || (task.prio ? 'high' : 'normal'),
     status: task.status || (task.done ? 'done' : 'todo'),
-    category: task.category || tile.title || '',
+    category: task.category || tile.title || availablePhases[0] || '',
     tags: Array.isArray(task.tags) ? task.tags : [],
     prio: task.prio || false,
     done: task.done || false,
@@ -105,6 +114,21 @@ const TaskModal = ({ tileId, taskId, tiles, projects, updateTask, onClose }) => 
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
                     placeholder="Assignee..."
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Phase</label>
+                  <div className="relative">
+                    <select
+                      value={taskForm.category}
+                      onChange={(e) => setTaskForm(prev => ({ ...prev, category: e.target.value }))}
+                      className="appearance-none w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 focus:ring-2 focus:ring-gray-500 focus:border-transparent dark:bg-[#0F1115] dark:border-gray-700 dark:focus:ring-gray-600"
+                    >
+                      {availablePhases.map((phase) => (
+                        <option key={phase} value={phase}>{phase}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
+                  </div>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
@@ -249,6 +273,11 @@ TaskModal.propTypes = {
   projects: PropTypes.array.isRequired,
   updateTask: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
+  phases: PropTypes.arrayOf(PropTypes.string),
+};
+
+TaskModal.defaultProps = {
+  phases: DEFAULT_PHASES,
 };
 
 export default TaskModal;

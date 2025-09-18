@@ -74,7 +74,18 @@ import {
   MEETING_ICON_OPTIONS,
   STORAGE_KEYS
 } from '../shared/utils';
-import { StorageService, supabasePushState, supabasePullState } from '../shared/services';
+import {
+  StorageService,
+  supabasePushState,
+  supabasePullState,
+  saveAttachmentDirectoryHandle,
+  getAttachmentDirectoryHandle,
+  ensureDirectoryPermission,
+  clearAttachmentDirectoryHandle,
+  writeFileToDirectory,
+  readFileFromDirectory,
+  deleteFileFromDirectory,
+} from '../shared/services';
 
 // Import features
 import { 
@@ -91,11 +102,6 @@ import { TimelinePage, AgentPage } from '../pages';
 // Import components that are still in App.jsx (to be extracted later)
 import MiniCalendar from './components/MiniCalendar';
 import TileChart from './components/TileChart';
-import MeetingModal from './components/MeetingModal';
-import NoteModal from './components/NoteModal';
-import IconPicker from './components/IconPicker';
-import ExpandedTileModal from './components/ExpandedTileModal';
-import ExpandedAddTaskInput from './components/ExpandedAddTaskInput';
 import SettingsPage from './components/SettingsPage';
 
 export default function App() {
@@ -119,16 +125,14 @@ export default function App() {
 
   const {
     meetings,
-    setMeetings,
     addMeeting,
-    renameMeeting,
+    updateMeeting,
     removeMeeting,
-    updateMeetingIcon,
     addMeetingAttachment,
+    updateMeetingAttachment,
     removeMeetingAttachment,
-    addNote,
-    updateNote,
-    removeNote,
+    linkTaskToMeeting,
+    unlinkTaskFromMeeting,
     reorderMeetings,
   } = useMeetings();
 
@@ -137,6 +141,7 @@ export default function App() {
     addProject,
     updateProject,
     deleteProject,
+    reorderProjects,
   } = useProjects();
 
   // Token tracking state for AI usage
@@ -182,6 +187,42 @@ export default function App() {
     StorageService.set(STORAGE_KEYS.WORK_CHECKLIST, { ...saved, settings });
   }, [settings]);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const handle = await getAttachmentDirectoryHandle();
+        if (!mounted) return;
+        if (handle) {
+          const permission = await ensureDirectoryPermission(handle);
+          if (!mounted) return;
+          setAttachmentDirHandle(handle);
+          setAttachmentDirName(handle.name || '');
+          setAttachmentDirStatus(permission === 'granted' ? 'granted' : 'denied');
+          if (permission === 'granted' && settings.attachmentDirectoryName !== (handle.name || '')) {
+            setSettings((prev) => ({ ...prev, attachmentDirectoryName: handle.name || '' }));
+          }
+        } else {
+          setAttachmentDirHandle(null);
+          setAttachmentDirStatus('not-configured');
+        }
+      } catch (err) {
+        console.warn('Attachment directory init failed', err);
+        if (!mounted) return;
+        setAttachmentDirHandle(null);
+        setAttachmentDirStatus('not-configured');
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [attachmentDirHandle, setAttachmentDirHandle] = useState(null);
+  const [attachmentDirStatus, setAttachmentDirStatus] = useState('checking');
+  const [attachmentDirName, setAttachmentDirName] = useState(settings.attachmentDirectoryName || '');
+
   // Debounced Supabase auto-sync (push on changes)
   const lastPushRef = React.useRef('');
   const pushTimerRef = React.useRef(null);
@@ -210,10 +251,20 @@ export default function App() {
     return () => pushTimerRef.current && clearTimeout(pushTimerRef.current);
   }, [tiles, meetings, projects, settings]);
 
-  // Dark-only UI
+  // Apply theme to document root/body
   useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
+    const theme = settings?.theme || 'dark';
+    const isDark = theme === 'dark';
+    const root = document.documentElement;
+    root.classList.toggle('dark', isDark);
+    if (typeof document !== 'undefined') {
+      const body = document.body;
+      body.classList.toggle('light-theme', !isDark);
+      body.classList.toggle('dark-theme', isDark);
+      body.style.backgroundColor = isDark ? '#05070c' : '#f4f6fb';
+      body.style.color = isDark ? '#e5e7eb' : '#1f2937';
+    }
+  }, [settings?.theme]);
 
   // On-load pull once per session: only reload if remote is newer than local
   const pulledOnceRef = React.useRef(false);
@@ -284,7 +335,6 @@ export default function App() {
   const [showExpandedTileModal, setShowExpandedTileModal] = useState(false);
   const [expandedTileId, setExpandedTileId] = useState(null);
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [dirHandle, setDirHandle] = useState(null);
   const [analysisTileIds, setAnalysisTileIds] = useState([]);
   const [analysisMeetingIds, setAnalysisMeetingIds] = useState([]);
@@ -639,6 +689,178 @@ Please provide a structured action plan with specific daily tasks and priorities
     });
   };
 
+  const ensureAttachmentDirectory = async () => {
+    if (!attachmentDirHandle) return 'not-configured';
+    const status = await ensureDirectoryPermission(attachmentDirHandle);
+    setAttachmentDirStatus(status === 'granted' ? 'granted' : 'denied');
+    return status;
+  };
+
+  const selectAttachmentDirectory = async () => {
+    if (!window.showDirectoryPicker) {
+      alert('Your browser does not support the File System Access API. Please use the latest Chrome or Edge.');
+      return null;
+    }
+    try {
+      const handle = await window.showDirectoryPicker();
+      const permission = await ensureDirectoryPermission(handle);
+      if (permission !== 'granted') {
+        alert('Folder permission is required to manage attachments.');
+        return null;
+      }
+      await saveAttachmentDirectoryHandle(handle);
+      setAttachmentDirHandle(handle);
+      setAttachmentDirName(handle.name || '');
+      setAttachmentDirStatus('granted');
+      setSettings((prev) => ({ ...prev, attachmentDirectoryName: handle.name || '' }));
+      return handle;
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      console.error('Selecting attachment directory failed', err);
+      return null;
+    }
+  };
+
+  const clearAttachmentDirectory = async () => {
+    await clearAttachmentDirectoryHandle();
+    setAttachmentDirHandle(null);
+    setAttachmentDirStatus('not-configured');
+    setAttachmentDirName('');
+    setSettings((prev) => ({ ...prev, attachmentDirectoryName: '' }));
+  };
+
+  const updateProjectAttachments = (projectId, updater) => {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+    const current = Array.isArray(project.attachments) ? project.attachments : [];
+    const next = updater(current);
+    updateProject(projectId, { attachments: next });
+  };
+
+  const attachFile = async ({ projectId, meetingId, files }) => {
+    let handle = attachmentDirHandle;
+    if (!handle) {
+      handle = await selectAttachmentDirectory();
+    }
+    if (!handle) {
+      return [];
+    }
+    const permission = await ensureDirectoryPermission(handle);
+    if (permission !== 'granted') {
+      alert('Folder permission is required to save attachments.');
+      setAttachmentDirStatus('denied');
+      return [];
+    }
+    setAttachmentDirStatus('granted');
+    const metas = [];
+    const projectKey = projectId || 'proj-default';
+    for (const file of files) {
+      const safeName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
+      const segments = [projectKey];
+      if (meetingId) segments.push(`meeting-${meetingId}`);
+      const filePath = [...segments, safeName].join('/');
+      await writeFileToDirectory(handle, filePath, file);
+      const meta = {
+        id: generateId('file'),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        createdAt: new Date().toISOString(),
+        projectId: projectKey,
+        meetingId: meetingId || null,
+        path: filePath,
+      };
+      metas.push(meta);
+      if (meetingId) {
+        addMeetingAttachment(meetingId, meta);
+      }
+      updateProjectAttachments(projectKey, (list) => {
+        const filtered = list.filter((item) => item.id !== meta.id);
+        return [...filtered, meta];
+      });
+    }
+    return metas;
+  };
+
+  const downloadAttachment = async (attachment) => {
+    try {
+      if (!attachmentDirHandle) {
+        alert('Select an attachment folder in Settings first.');
+        return;
+      }
+      const permission = await ensureDirectoryPermission(attachmentDirHandle);
+      if (permission !== 'granted') {
+        alert('Permission to read the attachment folder was denied. Re-authorize in Settings.');
+        return;
+      }
+      const file = await readFileFromDirectory(attachmentDirHandle, attachment.path);
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download attachment', err);
+      alert('Unable to open attachment. Please ensure the folder is still accessible.');
+    }
+  };
+
+  const deleteAttachment = async (attachment) => {
+    if (!attachment) return;
+    try {
+      if (!attachmentDirHandle) {
+        alert('Select an attachment folder in Settings first.');
+        return;
+      }
+      const permission = await ensureDirectoryPermission(attachmentDirHandle);
+      if (permission !== 'granted') {
+        alert('Permission denied. Re-authorize in Settings.');
+        return;
+      }
+      await deleteFileFromDirectory(attachmentDirHandle, attachment.path);
+    } catch (err) {
+      console.warn('Could not delete file from disk', err);
+    }
+
+    if (attachment.meetingId) {
+      removeMeetingAttachment(attachment.meetingId, attachment.id);
+    }
+    updateProjectAttachments(attachment.projectId || 'proj-default', (list) =>
+      list.filter((att) => att.id !== attachment.id)
+    );
+  };
+
+  const handleMeetingDelete = async (meetingId) => {
+    const meeting = meetings.find((m) => m.id === meetingId);
+    if (meeting && Array.isArray(meeting.attachments)) {
+      for (const attachment of meeting.attachments) {
+        await deleteAttachment(attachment);
+      }
+    }
+    removeMeeting(meetingId);
+  };
+
+  const handlePhaseReorder = (sourceIndex, targetIndex) => {
+    setSettings((prev) => {
+      const sequence = Array.isArray(prev.phases) ? [...prev.phases] : [];
+      if (
+        sourceIndex < 0 ||
+        targetIndex < 0 ||
+        sourceIndex >= sequence.length ||
+        targetIndex >= sequence.length
+      ) {
+        return prev;
+      }
+      const updated = [...sequence];
+      const [moved] = updated.splice(sourceIndex, 1);
+      updated.splice(targetIndex, 0, moved);
+      return { ...prev, phases: updated };
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0B0D12]">
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -675,8 +897,9 @@ Please provide a structured action plan with specific daily tasks and priorities
                 );
               })()}
               <button
-                onClick={() => setShowSettings(true)}
-                className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-[#1A1D24]"
+                onClick={() => setActivePage('settings')}
+                className="p-2 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-[#1A1D24]"
+                title="Open settings"
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -686,21 +909,29 @@ Please provide a structured action plan with specific daily tasks and priorities
 
         {/* Navigation */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
-          <div className="flex items-center justify-center space-x-8 text-gray-600 dark:text-gray-300">
-            <button
-              onClick={() => setActivePage('timeline')}
-              className={`flex flex-col items-center ${activePage === 'timeline' ? 'text-gray-100' : 'hover:text-gray-200'}`}
-            >
-              <CalendarCheck className="w-6 h-6" />
-              <span className="text-xs mt-1">Timeline</span>
-            </button>
-            <button
-              onClick={() => setActivePage('agent')}
-              className={`flex flex-col items-center ${activePage === 'ai' ? 'text-gray-100' : 'hover:text-gray-200'}`}
-            >
-              <Bot className="w-6 h-6" />
-              <span className="text-xs mt-1">Agent</span>
-            </button>
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-gray-600 dark:text-gray-300">
+            {[
+              { key: 'timeline', label: 'Timeline', icon: CalendarCheck },
+              { key: 'agent', label: 'Agent', icon: Bot },
+              { key: 'settings', label: 'Settings', icon: Settings },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activePage === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setActivePage(item.key)}
+                  className={`flex flex-col items-center gap-1 rounded-lg px-4 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:focus-visible:ring-indigo-500 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-[#1A1D24]'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -732,15 +963,28 @@ Please provide a structured action plan with specific daily tasks and priorities
                   deleteProject(projectId);
                 }
               }}
-              onTaskCreate={(taskData) => {
-                createTask(taskData);
+              onProjectReorder={(sourceId, targetId) => {
+                reorderProjects(sourceId, targetId);
               }}
+              onTaskCreate={(taskData) => createTask(taskData)}
               onTaskClick={(task) => {
                 // Handle task click - could open a detailed view or edit modal
                 console.log('Task clicked:', task);
               }}
               updateTask={updateTask}
               removeTask={removeTask}
+              phases={settings.phases}
+              onPhaseReorder={handlePhaseReorder}
+              onMeetingCreate={addMeeting}
+              onMeetingUpdate={updateMeeting}
+              onMeetingDelete={handleMeetingDelete}
+              onLinkTaskToMeeting={linkTaskToMeeting}
+              onUnlinkTaskFromMeeting={unlinkTaskFromMeeting}
+              onAttachmentUpload={attachFile}
+              onAttachmentDownload={downloadAttachment}
+              onAttachmentDelete={deleteAttachment}
+              attachmentDirStatus={attachmentDirStatus}
+              attachmentDirName={attachmentDirName}
             />
           )}
 
@@ -755,6 +999,19 @@ Please provide a structured action plan with specific daily tasks and priorities
               settings={settings}
             />
           )}
+
+          {activePage === 'settings' && (
+            <SettingsPage
+              settings={settings}
+              setSettings={setSettings}
+              onNavigateBack={() => setActivePage('timeline')}
+              attachmentDirStatus={attachmentDirStatus}
+              attachmentDirName={attachmentDirName}
+              onChooseAttachmentDirectory={selectAttachmentDirectory}
+              onClearAttachmentDirectory={clearAttachmentDirectory}
+              onRetryAttachmentPermission={ensureAttachmentDirectory}
+            />
+          )}
         </div>
 
         {/* Modals */}
@@ -766,6 +1023,7 @@ Please provide a structured action plan with specific daily tasks and priorities
             projects={projects}
             updateTask={updateTask}
             onClose={() => setShowTaskModal(false)}
+            phases={settings.phases}
           />
         )}
 
@@ -786,17 +1044,6 @@ Please provide a structured action plan with specific daily tasks and priorities
               setShowProjectModal(false);
               setEditingProject(null);
             }}
-          />
-        )}
-
-        {/* Settings Modal */}
-        {showSettings && (
-          <SettingsPage
-            settings={settings}
-            setSettings={setSettings}
-            tokenInfo={tokenInfo}
-            setTokenInfo={setTokenInfo}
-            onClose={() => setShowSettings(false)}
           />
         )}
 

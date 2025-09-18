@@ -163,17 +163,21 @@ export const buildLLMContextSnapshot = ({ projects = [], tiles = [], meetings = 
     projectId: tile.projectId || 'proj-default',
   })));
 
+  const stripHtml = (input) => (input ? input.replace(/<[^>]+>/g, '') : '');
+
   const meetingsFlat = meetings.map(m => ({
     id: m.id,
     title: m.title,
     projectId: m.projectId || 'proj-default',
-    notes: (m.notes || []).map(n => ({
-      id: n.id,
-      date: n.date || null,
-      attendance: n.attendance || '',
-      summary: n.summary ? n.summary.replace(/<[^>]+>/g, '') : '',
-      actions: n.actions ? n.actions.replace(/<[^>]+>/g, '') : '',
-    }))
+    date: m.date || null,
+    participants: m.participants || '',
+    agenda: stripHtml(m.agenda),
+    summary: stripHtml(m.summary),
+    followUps: stripHtml(m.followUps),
+    linkedTaskIds: Array.isArray(m.linkedTaskIds) ? m.linkedTaskIds : [],
+    attachments: Array.isArray(m.attachments)
+      ? m.attachments.map(att => ({ id: att.id, name: att.name, path: att.path }))
+      : [],
   }));
 
   return {
@@ -201,16 +205,18 @@ export const buildProjectContext = (projectId, tiles = [], meetings = []) => {
       done: !!task.done,
     })));
 
+  const stripHtml = (input) => (input ? input.replace(/<[^>]+>/g, '') : '');
+
   const meetingsForProject = meetings
     .filter(m => m.projectId === projectId)
     .map(m => ({
       title: m.title,
-      notes: (m.notes || []).map(n => ({
-        date: n.date || '',
-        attendance: n.attendance || '',
-        summary: n.summary ? n.summary.replace(/<[^>]+>/g, '') : '',
-        actions: n.actions ? n.actions.replace(/<[^>]+>/g, '') : '',
-      }))
+      date: m.date || '',
+      participants: m.participants || '',
+      agenda: stripHtml(m.agenda),
+      summary: stripHtml(m.summary),
+      followUps: stripHtml(m.followUps),
+      linkedTaskIds: Array.isArray(m.linkedTaskIds) ? m.linkedTaskIds : [],
     }));
 
   return { tasks, meetings: meetingsForProject };

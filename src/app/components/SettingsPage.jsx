@@ -1,13 +1,41 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  Sun,
+  Moon,
+  Plus,
+  Trash2,
+  ArrowLeft,
+  UploadCloud,
+  DownloadCloud,
+  FolderOpen,
+  RefreshCw,
+} from 'lucide-react';
 import { StorageService } from '../../shared/services';
 import { STORAGE_KEYS } from '../../shared/utils';
 
-const SettingsPage = ({ settings, setSettings, tokenInfo, setTokenInfo, onClose }) => {
+const DEFAULT_PHASES = ['Conceptual', 'Design', 'Validation', 'Startup'];
+
+const SettingsPage = ({
+  settings,
+  setSettings,
+  onNavigateBack,
+  attachmentDirStatus,
+  attachmentDirName,
+  onChooseAttachmentDirectory,
+  onClearAttachmentDirectory,
+  onRetryAttachmentPermission,
+}) => {
   const fileInputRef = useRef(null);
   const restoreInputRef = useRef(null);
   const [logoPreview, setLogoPreview] = useState(settings.logo || null);
+  const [phaseDraft, setPhaseDraft] = useState('');
 
-  const handleLogoChange = async (e) => {
+  const phases = useMemo(() => {
+    const list = Array.isArray(settings?.phases) ? settings.phases.filter(Boolean) : [];
+    return list.length ? list : DEFAULT_PHASES;
+  }, [settings?.phases]);
+
+  const handleLogoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -32,10 +60,10 @@ const SettingsPage = ({ settings, setSettings, tokenInfo, setTokenInfo, onClose 
     });
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'work-checklist-backup.json';
-    a.click();
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'work-checklist-backup.json';
+    anchor.click();
     URL.revokeObjectURL(url);
   };
 
@@ -64,174 +92,359 @@ const SettingsPage = ({ settings, setSettings, tokenInfo, setTokenInfo, onClose 
     window.location.reload();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-3xl rounded-2xl shadow-2xl bg-white text-gray-900 p-6 dark:bg-[#0F1115] dark:text-gray-200">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Settings</h2>
-          <button onClick={onClose} className="px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover:bg-[#232734]">Close</button>
-        </div>
+  const handlePhaseAdd = () => {
+    const value = phaseDraft.trim();
+    if (!value) return;
+    if (phases.some((phase) => phase.toLowerCase() === value.toLowerCase())) {
+      alert('Phase already exists.');
+      return;
+    }
+    setSettings((prev) => ({
+      ...prev,
+      phases: [...phases, value],
+    }));
+    setPhaseDraft('');
+  };
 
-        <div className="space-y-8 text-sm">
-          {/* OpenAI API Key */}
-          <section>
-            <h3 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">OpenAI API Key</h3>
-            <div className="flex items-center gap-2">
+  const handlePhaseRemove = (phase) => {
+    if (phases.length <= 1) {
+      alert('Keep at least one phase.');
+      return;
+    }
+    if (!confirm(`Remove phase "${phase}"? Existing tasks keep their current value.`)) return;
+    setSettings((prev) => ({
+      ...prev,
+      phases: phases.filter((p) => p !== phase),
+    }));
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Workspace Settings</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Customize the experience for everyone using this app.</p>
+        </div>
+        <button
+          onClick={onNavigateBack}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-[#1A1D24] dark:hover:text-gray-100"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to timeline
+        </button>
+      </div>
+
+      <div className="grid gap-6">
+        {/* Appearance */}
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Appearance</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Switch between light and dark modes.</p>
+            </div>
+            <div className="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-[#1A1D24]">
+              <button
+                onClick={() => handleThemeChange('light')}
+                className={`flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition ${
+                  settings.theme === 'light'
+                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-[#2B2F3A] dark:text-indigo-300'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+                }`}
+              >
+                <Sun className="w-4 h-4" />
+                Light
+              </button>
+              <button
+                onClick={() => handleThemeChange('dark')}
+                className={`ml-1 flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition ${
+                  settings.theme !== 'light'
+                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-[#2B2F3A] dark:text-indigo-300'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+                }`}
+              >
+                <Moon className="w-4 h-4" />
+                Dark
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Brand */}
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Brand</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Upload a logo to personalize the workspace.</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-[#1A1D24]">
+              {logoPreview ? (
+                <img src={logoPreview} alt="Workspace logo" className="max-h-full max-w-full object-contain" />
+              ) : (
+                <span className="text-xs text-gray-400">No Logo</span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#1A1D24]"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Upload Logo
+              </button>
+              {logoPreview && (
+                <button
+                  className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/30"
+                  onClick={() => {
+                    setLogoPreview(null);
+                    setSettings((prev) => ({ ...prev, logo: null }));
+                  }}
+                >
+                  Remove
+                </button>
+              )}
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+            </div>
+          </div>
+        </section>
+
+        {/* Phases */}
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Task Phases</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Define the phases available when creating or editing tasks.</p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {phases.map((phase) => (
+              <span
+                key={phase}
+                className="inline-flex items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700 dark:border-indigo-700/40 dark:bg-indigo-900/30 dark:text-indigo-200"
+              >
+                {phase}
+                <button
+                  type="button"
+                  className="p-1 text-indigo-500 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-100"
+                  onClick={() => handlePhaseRemove(phase)}
+                  aria-label={`Remove phase ${phase}`}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+            {!phases.length && <span className="text-sm text-gray-500">No phases yet</span>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={phaseDraft}
+              onChange={(e) => setPhaseDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handlePhaseAdd();
+                }
+              }}
+              placeholder="Add a phase"
+              className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
+            />
+            <button
+              type="button"
+              onClick={handlePhaseAdd}
+              className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+            >
+              <Plus className="w-4 h-4" />
+              Add phase
+            </button>
+          </div>
+        </section>
+
+        {/* Attachment storage */}
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Attachment Storage</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Select a local folder where meeting and project files will be stored.</p>
+              </div>
+              <span
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                  attachmentDirStatus === 'granted'
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800/60'
+                    : attachmentDirStatus === 'denied'
+                    ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/60'
+                    : 'border-gray-300 bg-gray-50 text-gray-600 dark:bg-[#1A1D24] dark:text-gray-300 dark:border-gray-700'
+                }`}
+              >
+                <FolderOpen className="w-4 h-4" />
+                {attachmentDirStatus === 'granted' && (attachmentDirName || 'Folder linked')}
+                {attachmentDirStatus === 'denied' && 'Permission needed'}
+                {attachmentDirStatus === 'not-configured' && 'No folder selected'}
+                {attachmentDirStatus === 'checking' && 'Checking access…'}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#1A1D24]"
+                onClick={onChooseAttachmentDirectory}
+              >
+                <FolderOpen className="w-4 h-4" />
+                Choose Folder
+              </button>
+              {attachmentDirStatus === 'denied' && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-300 px-3 py-2 text-sm font-medium text-amber-600 transition hover:bg-amber-50 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/30"
+                  onClick={onRetryAttachmentPermission}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Re-authorize
+                </button>
+              )}
+              {attachmentDirStatus !== 'not-configured' && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/30"
+                  onClick={onClearAttachmentDirectory}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Clear Link
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* API Key */}
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Integration</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Your OpenAI API key is stored locally on this device.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="password"
+              value={settings.apiKey || ''}
+              onChange={(e) => setSettings((prev) => ({ ...prev, apiKey: e.target.value }))}
+              placeholder="sk-..."
+              className="flex-1 min-w-[240px] rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
+            />
+            <span className="text-xs text-gray-500 dark:text-gray-400">Not synced to cloud</span>
+          </div>
+        </section>
+
+        {/* Supabase */}
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Supabase Sync</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Configure optional cloud backup and sync.</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-500">Supabase URL</label>
+              <input
+                type="text"
+                value={settings.supabaseUrl || ''}
+                onChange={(e) => setSettings((prev) => ({ ...prev, supabaseUrl: e.target.value }))}
+                placeholder="https://xxxxxxxx.supabase.co"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-500">Anon Key</label>
               <input
                 type="password"
-                value={settings.apiKey || ''}
-                onChange={(e) => setSettings(prev => ({ ...prev, apiKey: e.target.value }))}
-                placeholder="sk-..."
-                className="flex-1 rounded-md border border-gray-300 px-3 py-2 bg-white dark:bg-[#0F1115] dark:border-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                value={settings.supabaseAnonKey || ''}
+                onChange={(e) => setSettings((prev) => ({ ...prev, supabaseAnonKey: e.target.value }))}
+                placeholder="eyJhbGciOi..."
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
               />
-              <span className="text-xs text-gray-500 dark:text-gray-400">Stored locally</span>
             </div>
-          </section>
-          {/* Logo */}
-          <section>
-            <h3 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Brand</h3>
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden dark:bg-[#1A1D24]">
-                {logoPreview ? (
-                  <img src={logoPreview} alt="Logo" className="object-contain max-w-full max-h-full" />
-                ) : (
-                  <span className="text-gray-400">No Logo</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover:bg-[#232734]"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Select Logo
-                </button>
-                {logoPreview && (
-                  <button
-                    className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover:bg-[#232734]"
-                    onClick={() => { setLogoPreview(null); setSettings(prev => ({ ...prev, logo: null })); }}
-                  >
-                    Remove
-                  </button>
-                )}
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-              </div>
-            </div>
-          </section>
-
-          {/* Theme removed: dark-only UI as per requirements */}
-
-          {/* Supabase Sync */}
-          <section>
-            <h3 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Supabase Sync</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="block text-xs text-gray-600 dark:text-gray-400">Supabase URL</label>
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-500">Workspace ID</label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={settings.supabaseUrl || ''}
-                  onChange={(e) => setSettings(prev => ({ ...prev, supabaseUrl: e.target.value }))}
-                  placeholder="https://xxxxxxxx.supabase.co"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 bg-white dark:bg-[#0F1115] dark:border-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  value={settings.supabaseWorkspaceId || ''}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, supabaseWorkspaceId: e.target.value }))}
+                  placeholder="e.g., my-workspace-1"
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-700 dark:bg-[#1A1D24] dark:text-gray-100 dark:focus:ring-indigo-500/40"
                 />
+                <button
+                  onClick={() => setSettings((prev) => ({ ...prev, supabaseWorkspaceId: `ws-${Date.now().toString(36)}` }))}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#1A1D24]"
+                >
+                  Generate
+                </button>
               </div>
-              <div className="space-y-2">
-                <label className="block text-xs text-gray-600 dark:text-gray-400">Anon (Public) Key</label>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-500">Status</label>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input
-                  type="password"
-                  value={settings.supabaseAnonKey || ''}
-                  onChange={(e) => setSettings(prev => ({ ...prev, supabaseAnonKey: e.target.value }))}
-                  placeholder="eyJhbGciOi..."
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 bg-white dark:bg-[#0F1115] dark:border-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  type="checkbox"
+                  checked={!!settings.supabaseEnabled}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, supabaseEnabled: e.target.checked }))}
                 />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-xs text-gray-600 dark:text-gray-400">Workspace ID</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={settings.supabaseWorkspaceId || ''}
-                    onChange={(e) => setSettings(prev => ({ ...prev, supabaseWorkspaceId: e.target.value }))}
-                    placeholder="e.g., my-workspace-1"
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 bg-white dark:bg-[#0F1115] dark:border-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                  />
-                  <button
-                    className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover:bg-[#232734]"
-                    onClick={() => setSettings(prev => ({ ...prev, supabaseWorkspaceId: `ws-${Date.now().toString(36)}` }))}
-                  >
-                    Generate
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-xs text-gray-600 dark:text-gray-400">Enable</label>
-                <div>
-                  <label className="inline-flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={!!settings.supabaseEnabled} onChange={(e) => setSettings(prev => ({ ...prev, supabaseEnabled: e.target.checked }))} />
-                    <span>Enable cloud sync</span>
-                  </label>
-                </div>
-              </div>
+                Enable cloud sync
+              </label>
             </div>
-
-            <div className="mt-3 flex gap-2">
-              <button
-                className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700"
-                onClick={async () => {
-                  try {
-                    const saved = StorageService.get(STORAGE_KEYS.WORK_CHECKLIST, {});
-                    const mod = await import('../../shared/services/cloud/supabase');
-                    await mod.supabasePushState(settings, saved);
-                    alert('Pushed to Supabase successfully.');
-                  } catch (err) {
-                    alert('Push failed: ' + err.message);
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#1A1D24]"
+              onClick={async () => {
+                try {
+                  const saved = StorageService.get(STORAGE_KEYS.WORK_CHECKLIST, {});
+                  const mod = await import('../../shared/services/cloud/supabase');
+                  await mod.supabasePushState(settings, saved);
+                  alert('Pushed to Supabase successfully.');
+                } catch (err) {
+                  alert('Push failed: ' + err.message);
+                }
+              }}
+            >
+              <UploadCloud className="w-4 h-4" /> Push to Supabase
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#1A1D24]"
+              onClick={async () => {
+                try {
+                  const mod = await import('../../shared/services/cloud/supabase');
+                  const remote = await mod.supabasePullState(settings);
+                  if (!remote?.data) {
+                    alert('No remote state found.');
+                    return;
                   }
-                }}
-              >
-                Push to Supabase
-              </button>
-              <button
-                className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700"
-                onClick={async () => {
-                  try {
-                    const mod = await import('../../shared/services/cloud/supabase');
-                    const remote = await mod.supabasePullState(settings);
-                    if (!remote?.data) { alert('No remote state found.'); return; }
-                    StorageService.set(STORAGE_KEYS.WORK_CHECKLIST, remote.data);
-                    if (confirm('Pulled from Supabase. Reload to apply?')) window.location.reload();
-                  } catch (err) {
-                    alert('Pull failed: ' + err.message);
-                  }
-                }}
-              >
-                Pull from Supabase
-              </button>
-            </div>
-          </section>
+                  StorageService.set(STORAGE_KEYS.WORK_CHECKLIST, remote.data);
+                  if (confirm('Pulled from Supabase. Reload to apply?')) window.location.reload();
+                } catch (err) {
+                  alert('Pull failed: ' + err.message);
+                }
+              }}
+            >
+              <DownloadCloud className="w-4 h-4" /> Pull from Supabase
+            </button>
+          </div>
+        </section>
 
-          {/* Storage */}
-          <section>
-            <h3 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Storage</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Currently using Local Storage. You can back up or restore all app data as a JSON file.</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <button className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover:bg-[#232734]" onClick={handleBackup}>
-                Download Backup
-              </button>
-              <button className="px-3 py-2 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#1A1D24] dark:hover:bg-[#232734]" onClick={() => restoreInputRef.current?.click()}>
-                Restore Backup
-              </button>
-              <input ref={restoreInputRef} type="file" accept="application/json" className="hidden" onChange={handleRestore} />
-              <button className="px-3 py-2 rounded-md bg-red-600/90 text-white hover:bg-red-600" onClick={handleClear}>
-                Clear All Data
-              </button>
-            </div>
-          </section>
-
-          {/* Tokens (future AI usage) */}
-          <section>
-            <h3 className="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">AI Usage</h3>
-            <div className="text-xs text-gray-600 dark:text-gray-400">Tokens used: {tokenInfo.used} / {tokenInfo.total}</div>
-          </section>
-        </div>
+        {/* Storage */}
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Local Storage</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Back up or restore your workspace data.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#1A1D24]"
+              onClick={handleBackup}
+            >
+              <DownloadCloud className="w-4 h-4" /> Download Backup
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-[#1A1D24]"
+              onClick={() => restoreInputRef.current?.click()}
+            >
+              <UploadCloud className="w-4 h-4" /> Restore Backup
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/30"
+              onClick={handleClear}
+            >
+              <Trash2 className="w-4 h-4" /> Clear All Data
+            </button>
+            <input ref={restoreInputRef} type="file" accept="application/json" className="hidden" onChange={handleRestore} />
+          </div>
+        </section>
       </div>
     </div>
   );
