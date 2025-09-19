@@ -10,6 +10,7 @@ import {
   Trash2,
   Users,
   Paperclip,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 import 'react-quill/dist/quill.snow.css';
@@ -68,6 +69,8 @@ const MeetingEditor = ({
   onAttachmentUpload,
   onAttachmentDownload,
   onAttachmentDelete,
+  onAttachmentUnlink,
+  onAttachmentLink,
   attachmentDirStatus,
   presentation,
 }) => {
@@ -147,6 +150,16 @@ const MeetingEditor = ({
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
     await onAttachmentUpload({ projectId: meeting.projectId, meetingId: meeting.id, files });
+  };
+
+  const handleAttachmentLink = () => {
+    const hrefInput = window.prompt('Enter file path or URL to link');
+    const href = hrefInput?.trim();
+    if (!href) return;
+    const defaultName = href.split(/[\\/]/).pop() || 'Linked file';
+    const nameInput = window.prompt('Display name for this link', defaultName);
+    const name = (nameInput && nameInput.trim()) || defaultName;
+    onAttachmentLink({ projectId: meeting.projectId, meetingId: meeting.id, href, name });
   };
 
   const attachments = Array.isArray(meeting.attachments) ? meeting.attachments : [];
@@ -326,6 +339,12 @@ const MeetingEditor = ({
                     >
                       <Paperclip className="w-3.5 h-3.5" /> Upload
                     </button>
+                    <button
+                      onClick={handleAttachmentLink}
+                      className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-[11px] font-medium text-gray-600 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                    >
+                      <LinkIcon className="w-3.5 h-3.5" /> Link file
+                    </button>
                     <input ref={fileInputRef} type="file" multiple hidden onChange={handleAttachmentChange} />
                   </div>
                 </div>
@@ -333,31 +352,55 @@ const MeetingEditor = ({
                   <p className="mt-3 text-[12px] text-gray-500 dark:text-gray-400">No supporting files yet. Drop slides, transcripts, or recordings here.</p>
                 ) : (
                   <div className="mt-3 space-y-2">
-                    {attachments.map((attachment) => (
-                      <div key={attachment.id} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm dark:border-gray-700 dark:bg-[#0F1115] dark:text-gray-100">
-                        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                          <Paperclip className="w-3.5 h-3.5" />
-                          <div>
-                            <div className="font-medium text-gray-800 dark:text-gray-100">{attachment.name}</div>
-                            <div className="text-[10px] text-gray-500 dark:text-gray-400">{Math.round((attachment.size || 0) / 1024)} KB</div>
+                    {attachments.map((attachment) => {
+                      const isLink = attachment.storageType === 'link' || attachment.type === 'link' || Boolean(attachment.href);
+                      return (
+                        <div key={attachment.id} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs shadow-sm dark:border-gray-700 dark:bg-[#0F1115] dark:text-gray-100">
+                          <div className="flex items-start gap-2 text-gray-600 dark:text-gray-300">
+                            {isLink ? (
+                              <LinkIcon className="w-3.5 h-3.5 mt-0.5" />
+                            ) : (
+                              <Paperclip className="w-3.5 h-3.5 mt-0.5" />
+                            )}
+                            <div>
+                              <button
+                                onClick={() => onAttachmentDownload(attachment)}
+                                className="text-left font-medium text-gray-800 underline-offset-4 hover:underline dark:text-gray-100"
+                              >
+                                {attachment.name}
+                              </button>
+                              <div className="text-[10px] text-gray-500 dark:text-gray-400">
+                                {isLink
+                                  ? 'Linked file'
+                                  : `${Math.round((attachment.size || 0) / 1024)} KB`}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {attachment.meetingId && (
+                              <button
+                                onClick={() => onAttachmentUnlink(attachment)}
+                                className="rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                              >
+                                Unlink
+                              </button>
+                            )}
+                            <button
+                              onClick={() => onAttachmentDownload(attachment)}
+                              className="rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                            >
+                              Open
+                            </button>
+                            <button
+                              onClick={() => onAttachmentDelete(attachment)}
+                              className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => onAttachmentDownload(attachment)}
-                            className="rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-500 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={() => onAttachmentDelete(attachment)}
-                            className="rounded-md border border-red-200 px-2 py-1 text-[11px] text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -392,6 +435,8 @@ MeetingEditor.propTypes = {
   onAttachmentUpload: PropTypes.func.isRequired,
   onAttachmentDownload: PropTypes.func.isRequired,
   onAttachmentDelete: PropTypes.func.isRequired,
+  onAttachmentUnlink: PropTypes.func.isRequired,
+  onAttachmentLink: PropTypes.func.isRequired,
   attachmentDirStatus: PropTypes.string.isRequired,
   presentation: PropTypes.oneOf(['modal', 'inline']),
 };

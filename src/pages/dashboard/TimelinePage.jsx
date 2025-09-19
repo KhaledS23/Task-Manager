@@ -28,6 +28,8 @@ const TimelinePage = ({
   onAttachmentUpload,
   onAttachmentDownload,
   onAttachmentDelete,
+  onAttachmentLink,
+  onAttachmentUnlink,
   attachmentDirStatus,
   attachmentDirName,
 }) => {
@@ -86,6 +88,8 @@ const TimelinePage = ({
         onAttachmentUpload={onAttachmentUpload}
         onAttachmentDownload={onAttachmentDownload}
         onAttachmentDelete={onAttachmentDelete}
+        onAttachmentLink={onAttachmentLink}
+        onAttachmentUnlink={onAttachmentUnlink}
         attachmentDirStatus={attachmentDirStatus}
         attachmentDirName={attachmentDirName}
       />

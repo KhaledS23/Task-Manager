@@ -9,6 +9,7 @@ import {
   DownloadCloud,
   FolderOpen,
   RefreshCw,
+  Palette,
 } from 'lucide-react';
 import { StorageService } from '../../shared/services';
 import { STORAGE_KEYS } from '../../shared/utils';
@@ -136,11 +137,11 @@ const SettingsPage = ({
 
       <div className="grid gap-6">
         {/* Appearance */}
-        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+        <section className="rounded-xl border border-gray-200 bg-white navy-surface p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Appearance</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Switch between light and dark modes.</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Switch between light, dark, or evening-friendly comfort mode.</p>
             </div>
             <div className="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-[#1A1D24]">
               <button
@@ -157,7 +158,7 @@ const SettingsPage = ({
               <button
                 onClick={() => handleThemeChange('dark')}
                 className={`ml-1 flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition ${
-                  settings.theme !== 'light'
+                  settings.theme === 'dark'
                     ? 'bg-white text-indigo-600 shadow-sm dark:bg-[#2B2F3A] dark:text-indigo-300'
                     : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
                 }`}
@@ -165,12 +166,23 @@ const SettingsPage = ({
                 <Moon className="w-4 h-4" />
                 Dark
               </button>
+              <button
+                onClick={() => handleThemeChange('navy')}
+                className={`ml-1 flex items-center gap-1 rounded-md px-3 py-1 text-sm font-medium transition ${
+                  settings.theme === 'navy'
+                    ? 'bg-white text-indigo-600 shadow-sm dark:bg-[#2B2F3A] dark:text-indigo-300'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+                }`}
+              >
+                <Palette className="w-4 h-4" />
+                Comfort
+              </button>
             </div>
           </div>
         </section>
 
         {/* Brand */}
-        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+        <section className="rounded-xl border border-gray-200 bg-white navy-surface p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Brand</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Upload a logo to personalize the workspace.</p>
           <div className="flex flex-wrap items-center gap-4">
@@ -205,7 +217,7 @@ const SettingsPage = ({
         </section>
 
         {/* Phases */}
-        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+        <section className="rounded-xl border border-gray-200 bg-white navy-surface p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Task Phases</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Define the phases available when creating or editing tasks.</p>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -253,7 +265,7 @@ const SettingsPage = ({
         </section>
 
         {/* Attachment storage */}
-        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+        <section className="rounded-xl border border-gray-200 bg-white navy-surface p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div>

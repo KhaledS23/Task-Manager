@@ -54,8 +54,18 @@ body.dark-theme {
 }
 
 body.navy-theme {
-  background-color: #0a1324;
-  color: #e6ecff;
+  background-color: #e9ecf5;
+  color: #2f3545;
+}
+
+body.navy-theme .navy-surface {
+  background-color: #eef2fb !important;
+  border-color: #d2d8e6 !important;
+  box-shadow: none !important;
+}
+
+body.navy-theme .navy-surface-secondary {
+  background-color: #e3e7f4 !important;
 }
 .code-copy { position: absolute; top: 0.35rem; right: 0.35rem; opacity: 0; transition: opacity 0.2s ease; background: rgba(31,35,42,0.85); color: #e5e7eb; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.375rem; padding: 0.15rem 0.4rem; font-size: 0.75rem; }
 .code-wrap:hover .code-copy { opacity: 1; }

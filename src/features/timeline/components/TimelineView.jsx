@@ -13,8 +13,10 @@ import {
   Paperclip,
   Columns,
   FolderOpen,
-  ChevronLeft,
   ChevronRight,
+  Minus,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { getAllProjectActivities, groupActivitiesByTimeRange } from '../../../shared/utils';
@@ -32,6 +34,7 @@ const PhaseColumn = ({
   groupingEnabled,
   onAddTask,
   onOpenTask,
+  onHidePhase,
 }) => (
   <div
     className="flex w-72 shrink-0 flex-col rounded-2xl border border-indigo-100/60 bg-white/90 shadow-lg shadow-indigo-100/40 backdrop-blur dark:border-indigo-500/20 dark:bg-[#111624] dark:shadow-none"
@@ -46,15 +49,29 @@ const PhaseColumn = ({
         <div className="text-[11px] font-semibold uppercase">{phase}</div>
         <div className="text-[10px] text-gray-400 dark:text-gray-500">{tasks.length} task{tasks.length === 1 ? '' : 's'}</div>
       </div>
-      <button
-        onClick={(event) => {
-          event.stopPropagation();
-          onAddTask(phase);
-        }}
-        className="rounded-full border border-indigo-100 bg-white/80 p-1 text-indigo-500 shadow hover:bg-indigo-500 hover:text-white dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200"
-      >
-        <Plus className="w-3.5 h-3.5" />
-      </button>
+      <div className="flex items-center gap-1.5">
+        {onHidePhase && (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onHidePhase(phase);
+            }}
+            className="rounded-full border border-indigo-100 bg-white/80 p-1 text-indigo-500 shadow hover:bg-indigo-500 hover:text-white dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200"
+            title="Hide phase"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onAddTask(phase);
+          }}
+          className="rounded-full border border-indigo-100 bg-white/80 p-1 text-indigo-500 shadow hover:bg-indigo-500 hover:text-white dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-200"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
     <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
       {tasks.length === 0 ? (
@@ -97,10 +114,12 @@ PhaseColumn.propTypes = {
   groupingEnabled: PropTypes.bool,
   onAddTask: PropTypes.func.isRequired,
   onOpenTask: PropTypes.func.isRequired,
+  onHidePhase: PropTypes.func,
 };
 
 PhaseColumn.defaultProps = {
   groupingEnabled: false,
+  onHidePhase: null,
 };
 
 const TimelineView = ({
@@ -127,6 +146,8 @@ const TimelineView = ({
   onAttachmentUpload,
   onAttachmentDownload,
   onAttachmentDelete,
+  onAttachmentLink,
+  onAttachmentUnlink,
   attachmentDirStatus,
   attachmentDirName,
 }) => {
@@ -148,6 +169,7 @@ const TimelineView = ({
   const [editingMeetingId, setEditingMeetingId] = useState(null);
   const [phaseDrag, setPhaseDrag] = useState({ active: null, over: null });
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
+  const [hiddenPhases, setHiddenPhases] = useState([]);
 
   const activeProject = useMemo(() => {
     return projects.find((project) => project.id === selectedProjectId) || projects[0];
@@ -240,6 +262,10 @@ const TimelineView = ({
   }, [filteredTasks, meetingActivities, timeRange, selectedDate, viewMode]);
 
   const phaseOrder = phases && phases.length ? phases : ['Conceptual', 'Design', 'Validation', 'Startup'];
+  const visiblePhases = useMemo(
+    () => phaseOrder.filter((phase) => !hiddenPhases.includes(phase)),
+    [phaseOrder, hiddenPhases]
+  );
 
   const tasksByPhase = useMemo(() => {
     const map = new Map();
@@ -263,7 +289,8 @@ const TimelineView = ({
 
   const handleActivityClick = (activity) => {
     if (activity.type === 'task') {
-      setSelectedTaskInfo({ tileId: activity.tileId, taskId: activity.id });
+      openTaskDetails(activity);
+      return;
     }
     onTaskClick && onTaskClick(activity);
   };
@@ -271,6 +298,24 @@ const TimelineView = ({
   const openCreateTaskModal = (context) => {
     setCreateTaskContext(context);
     setShowCreateTaskModal(true);
+  };
+
+  const openTaskDetails = (task) => {
+    const taskId = task.id ?? task.taskId;
+    if (!taskId) return;
+    const context = taskLookup.get(taskId);
+    const payload = {
+      ...task,
+      id: taskId,
+      type: 'task',
+      tileId: context?.tileId ?? task.tileId ?? null,
+      tileTitle: context?.tileTitle ?? task.tileTitle ?? null,
+    };
+    if (onTaskClick) {
+      onTaskClick(payload);
+    } else if (payload.tileId != null) {
+      setSelectedTaskInfo({ tileId: payload.tileId, taskId });
+    }
   };
 
   const handleCreateTask = (taskData) => {
@@ -330,10 +375,27 @@ const TimelineView = ({
     setDragOverProjectId(null);
   };
 
-  const handleAddAttachment = async (meetingId) => {
-    const projectId = activeProject?.id || 'proj-default';
-    if (!onAttachmentUpload) return;
-    await onAttachmentUpload({ projectId, meetingId, files: [] });
+  const handleLinkAttachment = async () => {
+    if (!onAttachmentLink) return;
+    const hrefInput = window.prompt('Enter file path or URL to link');
+    const href = hrefInput?.trim();
+    if (!href) return;
+    const defaultName = href.split(/[\\/]/).pop() || 'Linked file';
+    const nameInput = window.prompt('Display name for this link', defaultName);
+    const name = (nameInput && nameInput.trim()) || defaultName;
+    onAttachmentLink({ projectId: activeProject?.id || 'proj-default', href, meetingId: null, name });
+  };
+
+  const hidePhase = (phase) => {
+    setHiddenPhases((prev) => {
+      if (prev.includes(phase)) return prev;
+      if (phaseOrder.length - prev.length <= 1) return prev; // keep at least one visible
+      return [...prev, phase];
+    });
+  };
+
+  const restorePhase = (phase) => {
+    setHiddenPhases((prev) => prev.filter((item) => item !== phase));
   };
 
   const editingMeeting = editingMeetingId ? meetingMap.get(editingMeetingId) : null;
@@ -353,38 +415,52 @@ const TimelineView = ({
       <div className="flex h-screen">
         {/* Project Sidebar */}
         <div
-          className={`relative mr-4 overflow-hidden rounded-xl bg-white shadow-md transition-[width] duration-300 dark:bg-[#0F1115] dark:border dark:border-gray-800 ${
+          className={`mr-4 overflow-hidden rounded-xl bg-white navy-surface shadow-md transition-[width] duration-300 dark:bg-[#0F1115] dark:border dark:border-gray-800 ${
             projectsCollapsed ? 'w-16' : 'w-80'
           }`}
         >
-          <button
-            onClick={() => setProjectsCollapsed((prev) => !prev)}
-            className="absolute -right-3 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:text-indigo-500 dark:border-gray-700 dark:bg-[#0F1115] dark:text-gray-300"
-            aria-label={projectsCollapsed ? 'Expand projects panel' : 'Collapse projects panel'}
-          >
-            {projectsCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
           {projectsCollapsed ? (
             <div className="flex h-full flex-col items-center justify-between py-4">
-              <button
-                onClick={onProjectCreate}
-                className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
-                title="Create project"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              <div className="flex-1" />
+              <div className="flex flex-col items-center gap-3">
+                <button
+                  onClick={onProjectCreate}
+                  className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                  title="Create project"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setProjectsCollapsed(false)}
+                  className="rounded-full border border-gray-200 p-2 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                  title="Expand projects"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
               <span className="mb-6 rotate-90 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 Projects
               </span>
             </div>
           ) : (
             <div className="p-3.5">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Projects</h3>
-                <button onClick={onProjectCreate} className="text-gray-500 transition hover:text-gray-300">
-                  <Plus className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={onProjectCreate}
+                    className="rounded-full border border-gray-200 p-1.5 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                    title="Create project"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setProjectsCollapsed(true)}
+                    className="rounded-full border border-gray-200 p-1.5 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                    title="Collapse projects"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               <div className="space-y-2 text-xs">
                 {projects.map((project) => {
@@ -445,7 +521,7 @@ const TimelineView = ({
         </div>
 
         {/* Main content */}
-        <div className="flex-1 bg-white rounded-xl shadow-md p-4 dark:bg-[#0F1115] dark:border dark:border-gray-800">
+        <div className="flex-1 bg-white navy-surface rounded-xl shadow-md p-4 dark:bg-[#0F1115] dark:border dark:border-gray-800">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
               <button
@@ -720,6 +796,15 @@ const TimelineView = ({
           <div className="mt-4 h-[calc(100%-4rem)] overflow-y-auto text-gray-800 dark:text-gray-200">
             {showAttachments ? (
               <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                  <span>Project attachments</span>
+                  <button
+                    onClick={handleLinkAttachment}
+                    className="rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                  >
+                    Link file
+                  </button>
+                </div>
                 {attachmentsForProject.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-400">
                     No attachments yet.
@@ -729,14 +814,29 @@ const TimelineView = ({
                     const meetingTitle = attachment.meetingId ? meetingMap.get(attachment.meetingId)?.title : null;
                     return (
                       <div key={attachment.id} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm dark:border-gray-800 dark:bg-[#10131A]">
-                        <div>
-                          <div className="font-medium text-gray-700 dark:text-gray-100">{attachment.name}</div>
-                          <div className="text-[11px] text-gray-500 dark:text-gray-400">
-                            {(Math.round((attachment.size || 0) / 102.4) / 10).toFixed(1)} KB
-                            {meetingTitle ? ` • From meeting: ${meetingTitle}` : ''}
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
+                        <div className="space-y-1">
+                      <button
+                        onClick={() => onAttachmentDownload(attachment)}
+                        className="text-left font-medium text-gray-700 underline-offset-4 hover:underline dark:text-gray-100"
+                      >
+                        {attachment.name}
+                      </button>
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {attachment.storageType === 'link' || attachment.type === 'link'
+                          ? 'Linked file'
+                          : `${(Math.round((attachment.size || 0) / 102.4) / 10).toFixed(1)} KB`}
+                        {meetingTitle ? ` • From meeting: ${meetingTitle}` : ''}
+                      </div>
+                    </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {attachment.meetingId && (
+                            <button
+                              onClick={() => onAttachmentUnlink(attachment)}
+                              className="rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                            >
+                              Unlink
+                            </button>
+                          )}
                           <button
                             onClick={() => onAttachmentDownload(attachment)}
                             className="rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
@@ -757,50 +857,61 @@ const TimelineView = ({
               </div>
             ) : viewMode === 'tasks' ? (
               groupingMode === 'phases' ? (
-                <div className="flex gap-3 overflow-x-auto py-2">
-                  {phaseOrder.map((phase) => (
-                    <PhaseColumn
-                      key={phase}
-                      phase={phase}
-                      tasks={tasksByPhase.map.get(phase) || []}
-                      onDropTask={handleTaskDropToPhase}
-                      onDragStartPhase={handlePhaseDragStart}
-                      onDragOverPhase={handlePhaseDragOver}
-                      onDragEndPhase={handlePhaseDragEnd}
-                      groupingEnabled={Boolean(onPhaseReorder)}
-                      onAddTask={(phaseName) =>
-                        openCreateTaskModal({
-                          projectId: activeProject?.id,
-                          phase: phaseName === 'Unassigned' ? undefined : phaseName,
-                        })
-                      }
-                      onOpenTask={(task) => {
-                        const context = taskLookup.get(task.id);
-                        if (context) setSelectedTaskInfo({ tileId: context.tileId, taskId: task.id });
-                      }}
-                    />
-                  ))}
-                  {tasksByPhase.unassigned.length > 0 && (
-                    <PhaseColumn
-                      phase="Unassigned"
-                      tasks={tasksByPhase.unassigned}
-                      onDropTask={handleTaskDropToPhase}
-                      onDragStartPhase={handlePhaseDragStart}
-                      onDragOverPhase={handlePhaseDragOver}
-                      onDragEndPhase={handlePhaseDragEnd}
-                      groupingEnabled={false}
-                      onAddTask={(phaseName) =>
-                        openCreateTaskModal({
-                          projectId: activeProject?.id,
-                          phase: phaseName === 'Unassigned' ? undefined : phaseName,
-                        })
-                      }
-                      onOpenTask={(task) => {
-                        const context = taskLookup.get(task.id);
-                        if (context) setSelectedTaskInfo({ tileId: context.tileId, taskId: task.id });
-                      }}
-                    />
+                <div className="space-y-3">
+                  {hiddenPhases.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <span>Hidden phases:</span>
+                      {hiddenPhases.map((phase) => (
+                        <button
+                          key={phase}
+                          onClick={() => restorePhase(phase)}
+                          className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                        >
+                          <Eye className="w-3 h-3" /> {phase}
+                        </button>
+                      ))}
+                    </div>
                   )}
+                  <div className="flex gap-3 overflow-x-auto py-2">
+                    {visiblePhases.map((phase) => (
+                      <PhaseColumn
+                        key={phase}
+                        phase={phase}
+                        tasks={tasksByPhase.map.get(phase) || []}
+                        onDropTask={handleTaskDropToPhase}
+                        onDragStartPhase={handlePhaseDragStart}
+                        onDragOverPhase={handlePhaseDragOver}
+                        onDragEndPhase={handlePhaseDragEnd}
+                        groupingEnabled={Boolean(onPhaseReorder)}
+                        onAddTask={(phaseName) =>
+                          openCreateTaskModal({
+                            projectId: activeProject?.id,
+                            phase: phaseName === 'Unassigned' ? undefined : phaseName,
+                          })
+                        }
+                        onOpenTask={openTaskDetails}
+                        onHidePhase={visiblePhases.length > 1 ? hidePhase : null}
+                      />
+                    ))}
+                    {tasksByPhase.unassigned.length > 0 && (
+                      <PhaseColumn
+                        phase="Unassigned"
+                        tasks={tasksByPhase.unassigned}
+                        onDropTask={handleTaskDropToPhase}
+                        onDragStartPhase={handlePhaseDragStart}
+                        onDragOverPhase={handlePhaseDragOver}
+                        onDragEndPhase={handlePhaseDragEnd}
+                        groupingEnabled={false}
+                        onAddTask={(phaseName) =>
+                          openCreateTaskModal({
+                            projectId: activeProject?.id,
+                            phase: phaseName === 'Unassigned' ? undefined : phaseName,
+                          })
+                        }
+                        onOpenTask={openTaskDetails}
+                      />
+                    )}
+                  </div>
                 </div>
               ) : groupedActivities.length === 0 ? (
                 <div className="text-center py-12">
@@ -817,7 +928,7 @@ const TimelineView = ({
                       isCollapsed={index > 0}
                       onTaskClick={handleActivityClick}
                       onMeetingClick={handleActivityClick}
-                      onTaskEdit={(activity) => setSelectedTaskInfo({ tileId: activity.tileId, taskId: activity.id })}
+                      onTaskEdit={openTaskDetails}
                       onTaskDelete={(activity) => removeTask && removeTask(activity.tileId, activity.id)}
                     />
                   ))}
@@ -846,6 +957,8 @@ const TimelineView = ({
                 onAttachmentUpload={onAttachmentUpload}
                 onAttachmentDownload={onAttachmentDownload}
                 onAttachmentDelete={onAttachmentDelete}
+                onAttachmentUnlink={onAttachmentUnlink}
+                onAttachmentLink={onAttachmentLink}
                 attachmentDirStatus={attachmentDirStatus}
               />
             ) : (
@@ -888,7 +1001,7 @@ const TimelineView = ({
         />
       )}
 
-      {selectedTaskInfo && (
+      {!onTaskClick && selectedTaskInfo && (
         <TaskModal
           tileId={selectedTaskInfo.tileId}
           taskId={selectedTaskInfo.taskId}
@@ -927,6 +1040,8 @@ TimelineView.propTypes = {
   onAttachmentUpload: PropTypes.func.isRequired,
   onAttachmentDownload: PropTypes.func.isRequired,
   onAttachmentDelete: PropTypes.func.isRequired,
+  onAttachmentLink: PropTypes.func.isRequired,
+  onAttachmentUnlink: PropTypes.func.isRequired,
   attachmentDirStatus: PropTypes.string.isRequired,
   attachmentDirName: PropTypes.string,
 };

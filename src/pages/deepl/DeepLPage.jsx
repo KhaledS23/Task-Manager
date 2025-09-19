@@ -45,6 +45,15 @@ const DeepLPage = ({ settings }) => {
     [apiKey]
   );
 
+  const apiBaseUrl = useMemo(() => {
+    if (!apiKey) return 'https://api-free.deepl.com';
+    const normalizedKey = apiKey.toLowerCase();
+    if (normalizedKey.endsWith(':fx')) {
+      return 'https://api-free.deepl.com';
+    }
+    return 'https://api.deepl.com';
+  }, [apiKey]);
+
   const handleSwap = () => {
     setSourceLang(targetLang);
     setTargetLang(sourceLang);
@@ -83,7 +92,7 @@ const DeepLPage = ({ settings }) => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('https://api-free.deepl.com/v2/translate', {
+      const response = await fetch(`${apiBaseUrl}/v2/translate`, {
         method: 'POST',
         headers: requestHeaders,
         body: buildBody().toString(),
@@ -96,7 +105,13 @@ const DeepLPage = ({ settings }) => {
       setOutputText(text);
     } catch (err) {
       console.error(err);
-      setError('Unable to reach DeepL. Confirm your API key and network access.');
+      if (err instanceof Error && err.message.includes('DeepL error 403')) {
+        setError('DeepL rejected the request. Double-check your API key and whether it requires the paid endpoint at api.deepl.com.');
+      } else if (err instanceof Error && err.message.includes('DeepL error 456')) {
+        setError('DeepL quota exceeded for the current billing period. Try again after resetting your allowance.');
+      } else {
+        setError('Unable to reach DeepL. Confirm your API key, endpoint, and network access.');
+      }
     } finally {
       setLoading(false);
     }

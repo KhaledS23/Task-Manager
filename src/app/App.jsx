@@ -258,7 +258,7 @@ export default function App() {
   // Apply theme to document root/body
   useEffect(() => {
     const theme = settings?.theme || 'dark';
-    const isDark = theme === 'dark' || theme === 'navy';
+    const isDark = theme === 'dark';
     const root = document.documentElement;
     root.classList.toggle('dark', isDark);
     root.dataset.theme = theme;
@@ -267,7 +267,7 @@ export default function App() {
       const themeStyles = {
         light: { background: '#f4f6fb', color: '#1f2937' },
         dark: { background: '#05070c', color: '#e5e7eb' },
-        navy: { background: '#0a1324', color: '#e6ecff' },
+        navy: { background: '#e9ecf5', color: '#2f3545' },
       };
       const palette = themeStyles[theme] || themeStyles.dark;
       body.classList.toggle('light-theme', theme === 'light');
@@ -794,8 +794,33 @@ Please provide a structured action plan with specific daily tasks and priorities
     return metas;
   };
 
+  const linkAttachment = ({ projectId, meetingId, href, name }) => {
+    if (!href) return null;
+    const meta = {
+      id: generateId('file'),
+      name: name || href.split(/[\\/]/).pop() || 'Linked file',
+      size: 0,
+      type: 'link',
+      storageType: 'link',
+      href,
+      createdAt: new Date().toISOString(),
+      projectId: projectId || 'proj-default',
+      meetingId: meetingId || null,
+    };
+    if (meetingId) {
+      addMeetingAttachment(meetingId, meta);
+    }
+    updateProjectAttachments(meta.projectId, (list) => [...list, meta]);
+    return meta;
+  };
+
   const downloadAttachment = async (attachment) => {
     try {
+      if (attachment?.href) {
+        const opened = window.open(attachment.href, '_blank', 'noopener,noreferrer');
+        if (!opened) alert('Allow popups to open linked files.');
+        return;
+      }
       if (!attachmentDirHandle) {
         alert('Select an attachment folder in Settings first.');
         return;
@@ -807,13 +832,16 @@ Please provide a structured action plan with specific daily tasks and priorities
       }
       const file = await readFileFromDirectory(attachmentDirHandle, attachment.path);
       const url = URL.createObjectURL(file);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = attachment.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!newWindow) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = attachment.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       console.error('Failed to download attachment', err);
       alert('Unable to open attachment. Please ensure the folder is still accessible.');
@@ -823,6 +851,7 @@ Please provide a structured action plan with specific daily tasks and priorities
   const deleteAttachment = async (attachment) => {
     if (!attachment) return;
     try {
+      if (attachment?.href) throw new Error('linked-only');
       if (!attachmentDirHandle) {
         alert('Select an attachment folder in Settings first.');
         return;
@@ -834,7 +863,9 @@ Please provide a structured action plan with specific daily tasks and priorities
       }
       await deleteFileFromDirectory(attachmentDirHandle, attachment.path);
     } catch (err) {
-      console.warn('Could not delete file from disk', err);
+      if (err?.message !== 'linked-only') {
+        console.warn('Could not delete file from disk', err);
+      }
     }
 
     if (attachment.meetingId) {
@@ -843,6 +874,26 @@ Please provide a structured action plan with specific daily tasks and priorities
     updateProjectAttachments(attachment.projectId || 'proj-default', (list) =>
       list.filter((att) => att.id !== attachment.id)
     );
+  };
+
+  const unlinkAttachment = (attachment) => {
+    if (!attachment?.id) return;
+    if (attachment.meetingId) {
+      removeMeetingAttachment(attachment.meetingId, attachment.id);
+    }
+    updateProjectAttachments(attachment.projectId || 'proj-default', (list) =>
+      list.map((item) => (item.id === attachment.id ? { ...item, meetingId: null } : item))
+    );
+  };
+
+  const findTaskContext = (taskId) => {
+    for (const tile of tiles) {
+      const match = tile.tasks.find((task) => task.id === taskId);
+      if (match) {
+        return { tileId: tile.id, tileTitle: tile.title };
+      }
+    }
+    return null;
   };
 
   const handleMeetingDelete = async (meetingId) => {
@@ -873,6 +924,22 @@ Please provide a structured action plan with specific daily tasks and priorities
     });
   };
 
+  const handleTaskOpen = (activity) => {
+    if (!activity) return;
+    const taskId = activity.id ?? activity.taskId;
+    if (!taskId) return;
+    let tileId = activity.tileId ?? activity.tile?.id ?? null;
+    let tileTitle = activity.tileTitle ?? activity.tile?.title ?? null;
+    if (tileId == null) {
+      const fallback = findTaskContext(taskId);
+      if (!fallback) return;
+      tileId = fallback.tileId;
+      tileTitle = fallback.tileTitle;
+    }
+    setSelectedTaskInfo({ tileId, taskId, tileTitle });
+    setShowTaskModal(true);
+  };
+
   const themeMode = settings?.theme || 'dark';
   const themeOptions = [
     { key: 'light', icon: Sun, label: 'Light' },
@@ -883,12 +950,12 @@ Please provide a structured action plan with specific daily tasks and priorities
   return (
     <div
       className={`min-h-screen bg-gray-50 dark:bg-[#0B0D12] ${
-        themeMode === 'navy' ? 'bg-[#0b1224]' : ''
+        themeMode === 'navy' ? 'bg-[#dde2ee]' : ''
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
+        <div className="bg-white navy-surface rounded-xl shadow-md p-6 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               {settings.logo && (
@@ -951,7 +1018,7 @@ Please provide a structured action plan with specific daily tasks and priorities
         </div>
 
         {/* Navigation */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
+        <div className="bg-white navy-surface rounded-xl shadow-md p-4 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-gray-600 dark:text-gray-300">
             {[
               { key: 'timeline', label: 'Timeline', icon: CalendarCheck },
@@ -1011,10 +1078,7 @@ Please provide a structured action plan with specific daily tasks and priorities
                 reorderProjects(sourceId, targetId);
               }}
               onTaskCreate={(taskData) => createTask(taskData)}
-              onTaskClick={(task) => {
-                // Handle task click - could open a detailed view or edit modal
-                console.log('Task clicked:', task);
-              }}
+              onTaskClick={handleTaskOpen}
               updateTask={updateTask}
               removeTask={removeTask}
               phases={settings.phases}
@@ -1027,6 +1091,8 @@ Please provide a structured action plan with specific daily tasks and priorities
               onAttachmentUpload={attachFile}
               onAttachmentDownload={downloadAttachment}
               onAttachmentDelete={deleteAttachment}
+              onAttachmentLink={linkAttachment}
+              onAttachmentUnlink={unlinkAttachment}
               attachmentDirStatus={attachmentDirStatus}
               attachmentDirName={attachmentDirName}
             />
@@ -1070,7 +1136,10 @@ Please provide a structured action plan with specific daily tasks and priorities
             tiles={tiles}
             projects={projects}
             updateTask={updateTask}
-            onClose={() => setShowTaskModal(false)}
+            onClose={() => {
+              setShowTaskModal(false);
+              setSelectedTaskInfo(null);
+            }}
             phases={settings.phases}
           />
         )}
