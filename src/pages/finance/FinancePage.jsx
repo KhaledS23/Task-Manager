@@ -1,23 +1,22 @@
 import React, { useMemo, useState } from 'react';
-import PropTypes from 'prop-types';
-import { Plus, Trash2, Link as LinkIcon, Calendar, Flag, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Flag, CheckCircle2, Minus } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
-
 import { useFinanceProjects } from '../../features/finance/hooks/useFinanceProjects';
 
-const FinancePage = ({}) => {
+const FinancePage = () => {
   const { projects, addProject, updateProject, deleteProject, reorderProjects } = useFinanceProjects();
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || null);
   const [draggingProjectId, setDraggingProjectId] = useState(null);
   const [dragOverProjectId, setDragOverProjectId] = useState(null);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState(null);
+  const [projectNameDraft, setProjectNameDraft] = useState('');
 
-  const activeProject = useMemo(() => {
-    return projects.find((p) => p.id === selectedProjectId) || projects[0] || null;
-  }, [projects, selectedProjectId]);
+  const activeProject = useMemo(() => projects.find((p) => p.id === selectedProjectId) || projects[0] || null, [projects, selectedProjectId]);
 
   const finance = activeProject?.finance || {};
   const [poForm, setPoForm] = useState({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '' });
-
+  
   const handleAddPO = () => {
     const supplier = poForm.supplier.trim();
     const number = poForm.number.trim();
@@ -25,7 +24,7 @@ const FinancePage = ({}) => {
     if (!supplier || !number || !value) return;
     const nextPOs = Array.isArray(finance.pos) ? [...finance.pos] : [];
     nextPOs.push({ id: `po-${Date.now()}`, supplier, number, value, link: poForm.link?.trim() || '', description: poForm.description?.trim() || '', committedAt: poForm.committedAt || null, deliveryAt: poForm.deliveryAt || null, delivered: false });
-    onProjectSave(activeProject.id, { finance: { ...finance, pos: nextPOs } });
+    updateProject(activeProject.id, { finance: { ...finance, pos: nextPOs } });
     setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '' });
   };
 
@@ -61,19 +60,6 @@ const FinancePage = ({}) => {
     return data;
   }, [finance]);
 
-  const handleLinkFile = () => {
-    if (!activeProject) return;
-    const hrefInput = window.prompt('Enter file path or URL to link');
-    const href = hrefInput?.trim();
-    if (!href) return;
-    const defaultName = href.split(/[\\/]/).pop() || 'Linked file';
-    const nameInput = window.prompt('Display name for this link', defaultName);
-    const name = (nameInput && nameInput.trim()) || defaultName;
-    onAttachmentLink({ projectId: activeProject.id, meetingId: null, href, name });
-  };
-
-  const attachments = useMemo(() => Array.isArray(activeProject?.attachments) ? activeProject.attachments : [], [activeProject]);
-
   const handleReorderProjects = (sourceId, targetId) => {
     if (!sourceId || !targetId || sourceId === targetId) return;
     reorderProjects(sourceId, targetId);
@@ -85,17 +71,18 @@ const FinancePage = ({}) => {
     <div className="max-w-7xl mx-auto">
       <div className="flex">
         {/* Project Sidebar */}
-        <div className="mr-4 w-80 overflow-hidden rounded-xl bg-white navy-surface shadow-md dark:bg-[#0F1115] dark:border dark:border-gray-800">
+        <div className={`mr-4 overflow-hidden rounded-xl bg-white navy-surface shadow-md dark:bg-[#0F1115] dark:border dark:border-gray-800 ${projectsCollapsed ? 'w-16' : 'w-80'}`}>
           <div className="p-3.5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Projects</h3>
-              <button
-                onClick={() => addProject({})}
-                className="rounded-full border border-gray-200 p-1.5 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
-                title="Create project"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => addProject({})} className="rounded-full border border-gray-200 p-1.5 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300" title="Create project">
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button onClick={() => setProjectsCollapsed((v) => !v)} className="rounded-full border border-gray-200 p-1.5 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300" title={projectsCollapsed ? 'Expand projects' : 'Collapse projects'}>
+                  <Minus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="space-y-1.5">
               {projects.length === 0 && (
@@ -135,14 +122,29 @@ const FinancePage = ({}) => {
                     <div className="flex items-center space-x-3">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: project.color }} />
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm truncate text-gray-700 dark:text-gray-200">{project.name}</h4>
-                        <p className="text-xs text-gray-500 truncate dark:text-gray-400">{project.description}</p>
+                        {editingProjectId === project.id ? (
+                          <input
+                            autoFocus
+                            value={projectNameDraft}
+                            onChange={(e) => setProjectNameDraft(e.target.value)}
+                            onBlur={() => { updateProject(project.id, { name: projectNameDraft }); setEditingProjectId(null); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { updateProject(project.id, { name: projectNameDraft }); setEditingProjectId(null); }}}
+                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                          />
+                        ) : (
+                          <h4 onDoubleClick={() => { setEditingProjectId(project.id); setProjectNameDraft(project.name || ''); }} className="font-medium text-sm truncate text-gray-700 dark:text-gray-200 cursor-text" title="Double-click to rename">
+                            {project.name}
+                          </h4>
+                        )}
+                        {!projectsCollapsed && (
+                          <p className="text-xs text-gray-500 truncate dark:text-gray-400">{project.description}</p>
+                        )}
                       </div>
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        deleteProject(project.id);
-                      }}
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteProject(project.id);
+                        }}
                         className="p-1 text-gray-400 hover:text-red-400"
                         title="Delete project"
                       >
@@ -212,7 +214,25 @@ const FinancePage = ({}) => {
               </div>
 
               <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                <div className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Remaining over time</div>
+                <div className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  <span>Remaining over time</span>
+                  <div className="flex items-center gap-2 text-xs font-normal">
+                    <button onClick={() => {
+                      const date = window.prompt('Add vertical event (date YYYY-MM-DD)');
+                      if (!date) return;
+                      const label = window.prompt('Label');
+                      const events = Array.isArray(finance.events) ? finance.events : [];
+                      updateProject(activeProject.id, { finance: { ...finance, events: [...events, { id: `ev-${Date.now()}`, type: 'x', value: date, label: label || '' }] } });
+                    }} className="rounded-md border border-gray-300 px-2 py-1 text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300">+ X‑line</button>
+                    <button onClick={() => {
+                      const y = window.prompt('Add horizontal event (remaining value number)');
+                      if (!y) return;
+                      const label = window.prompt('Label');
+                      const events = Array.isArray(finance.events) ? finance.events : [];
+                      updateProject(activeProject.id, { finance: { ...finance, events: [...events, { id: `ev-${Date.now()}`, type: 'y', value: parseFloat(y), label: label || '' }] } });
+                    }} className="rounded-md border border-gray-300 px-2 py-1 text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300">+ Y‑line</button>
+                  </div>
+                </div>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={lineData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
@@ -227,6 +247,16 @@ const FinancePage = ({}) => {
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip />
                       <ReferenceLine y={0} stroke="#94a3b8" />
+                      {/* Today marker */}
+                      <ReferenceLine x={new Date().toISOString().slice(0,10)} stroke="#94a3b8" strokeDasharray="3 3" label={{ value: 'Today', position: 'top', fill: '#64748b', fontSize: 10 }} />
+                      {/* Custom events */}
+                      {(finance.events || []).map((ev) => (
+                        ev.type === 'x' ? (
+                          <ReferenceLine key={ev.id} x={ev.value} stroke="#93c5fd" strokeDasharray="4 4" label={{ value: ev.label || '', position: 'top', fill: '#60a5fa', fontSize: 10 }} />
+                        ) : (
+                          <ReferenceLine key={ev.id} y={Number(ev.value)} stroke="#fca5a5" strokeDasharray="4 4" label={{ value: ev.label || '', position: 'right', fill: '#f87171', fontSize: 10 }} />
+                        )
+                      ))}
                       <Line type="monotone" dataKey="remaining" stroke="url(#remainStroke)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -234,8 +264,9 @@ const FinancePage = ({}) => {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
+                {/* Left: PO form */}
                 <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                  <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Purchase Orders</div>
+                  <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">New PO</div>
                   <div className="grid gap-2 md:grid-cols-3">
                     <input
                       value={poForm.supplier}
@@ -284,32 +315,65 @@ const FinancePage = ({}) => {
                       Add PO
                     </button>
                   </div>
-                  <div className="mt-4 space-y-2">
+                </div>
+
+                {/* Right: PO list with scroll */}
+                <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                  <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Purchase Orders</div>
+                  <div className="max-h-[500px] overflow-y-auto pr-1 space-y-2">
                     {(finance.pos || []).map((po) => {
                       const overdue = po.deliveryAt && !po.delivered && new Date(po.deliveryAt) < new Date();
                       return (
-                        <div key={po.id} className="rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-800 dark:bg-[#10131A]">
+                        <div key={po.id} className={`rounded-lg border bg-white p-3 text-sm dark:border-gray-800 dark:bg-[#10131A] ${po.delivered ? 'border-l-4 border-emerald-500' : 'border-l-4 border-sky-500'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
-                                <span className="font-medium truncate">{po.supplier}</span>
-                                <span className="text-gray-400">•</span>
-                                <span className="truncate">{po.number}</span>
-                                {overdue && <Flag className="w-3.5 h-3.5 text-red-500" title="Delivery overdue" />}
-                              </div>
-                              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                <span>Committed: {po.committedAt || '—'}</span>
-                                <span className="mx-2">|</span>
-                                <span>Delivery: {po.deliveryAt || '—'}</span>
-                                {po.link && (
-                                  <>
+                              {editingProjectId === po.id ? (
+                                <div className="space-y-2">
+                                  <div className="grid gap-2 md:grid-cols-3">
+                                    <input className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" defaultValue={po.supplier} onChange={(e)=> (po._draftSupplier = e.target.value)} />
+                                    <input className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" defaultValue={po.number} onChange={(e)=> (po._draftNumber = e.target.value)} />
+                                    <input type="number" className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" defaultValue={po.value} onChange={(e)=> (po._draftValue = e.target.value)} />
+                                    <input className="md:col-span-3 rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" placeholder="Link" defaultValue={po.link} onChange={(e)=> (po._draftLink = e.target.value)} />
+                                    <input className="md:col-span-3 rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" placeholder="Description" defaultValue={po.description} onChange={(e)=> (po._draftDesc = e.target.value)} />
+                                    <div className="grid grid-cols-2 gap-2 md:col-span-3">
+                                      <input type="date" className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" defaultValue={po.committedAt || ''} onChange={(e)=> (po._draftCommitted = e.target.value)} />
+                                      <input type="date" className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" defaultValue={po.deliveryAt || ''} onChange={(e)=> (po._draftDelivery = e.target.value)} />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button onClick={()=> {
+                                      const next = (finance.pos || []).map((x)=> x.id === po.id ? {
+                                        ...x,
+                                        supplier: po._draftSupplier ?? x.supplier,
+                                        number: po._draftNumber ?? x.number,
+                                        value: po._draftValue ? parseFloat(po._draftValue) || 0 : x.value,
+                                        link: po._draftLink ?? x.link,
+                                        description: po._draftDesc ?? x.description,
+                                        committedAt: po._draftCommitted ?? x.committedAt,
+                                        deliveryAt: po._draftDelivery ?? x.deliveryAt,
+                                      } : x);
+                                      updateProject(activeProject.id, { finance: { ...finance, pos: next } });
+                                      setEditingProjectId(null);
+                                    }} className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-semibold text-white">Save</button>
+                                    <button onClick={()=> setEditingProjectId(null)} className="rounded-md border border-gray-300 px-2 py-1 text-xs">Cancel</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
+                                    <span className="font-medium truncate">{po.supplier}</span>
+                                    <span className="text-gray-400">•</span>
+                                    <span className="truncate">{po.number}</span>
+                                    {overdue && <Flag className="w-3.5 h-3.5 text-red-500" title="Delivery overdue" />}
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    <span>Committed: {po.committedAt || '—'}</span>
                                     <span className="mx-2">|</span>
-                                    <a className="underline" href={po.link} target="_blank" rel="noreferrer">Link</a>
-                                  </>
-                                )}
-                              </div>
-                              {po.description && (
-                                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{po.description}</div>
+                                    <span>Delivery: {po.deliveryAt || '—'}</span>
+                                    {po.link && (<><span className="mx-2">|</span><a className="underline" href={po.link} target="_blank" rel="noreferrer">Link</a></>)}
+                                  </div>
+                                  {po.description && (<div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{po.description}</div>)}
+                                </>
                               )}
                             </div>
                             <div className="flex items-center gap-2">
@@ -317,7 +381,7 @@ const FinancePage = ({}) => {
                                 <button
                                   onClick={() => {
                                     const next = (finance.pos || []).map((x) => x.id === po.id ? { ...x, delivered: !x.delivered } : x);
-                                    onProjectSave(activeProject.id, { finance: { ...finance, pos: next } });
+                                    updateProject(activeProject.id, { finance: { ...finance, pos: next } });
                                   }}
                                   title="Toggle delivered"
                                   className={`h-4 w-4 rounded-full border ${po.delivered ? 'bg-emerald-500 border-emerald-600' : 'border-gray-400'} flex items-center justify-center`}
@@ -327,15 +391,8 @@ const FinancePage = ({}) => {
                                 Delivered
                               </div>
                               <div className="font-semibold text-gray-800 dark:text-gray-100">${Number(po.value || 0).toLocaleString()}</div>
-                              <button
-                                onClick={() => {
-                                  const next = (finance.pos || []).filter((x) => x.id !== po.id);
-                                  onProjectSave(activeProject.id, { finance: { ...finance, pos: next } });
-                                }}
-                                className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
-                              >
-                                Delete
-                              </button>
+                              <button onClick={() => setEditingProjectId(po.id)} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300">Edit</button>
+                              <button onClick={() => { const next = (finance.pos || []).filter((x)=> x.id !== po.id); updateProject(activeProject.id, { finance: { ...finance, pos: next } }); }} className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300">Delete</button>
                             </div>
                           </div>
                         </div>
@@ -351,21 +408,6 @@ const FinancePage = ({}) => {
       </div>
     </div>
   );
-};
-
-FinancePage.propTypes = {
-  projects: PropTypes.array.isRequired,
-  selectedProjectId: PropTypes.string,
-  onProjectChange: PropTypes.func.isRequired,
-  onProjectCreate: PropTypes.func.isRequired,
-  onProjectEdit: PropTypes.func.isRequired,
-  onProjectDelete: PropTypes.func.isRequired,
-  onProjectSave: PropTypes.func.isRequired,
-  onProjectReorder: PropTypes.func.isRequired,
-  onAttachmentUpload: PropTypes.func.isRequired,
-  onAttachmentDownload: PropTypes.func.isRequired,
-  onAttachmentDelete: PropTypes.func.isRequired,
-  onAttachmentLink: PropTypes.func.isRequired,
 };
 
 export default FinancePage;
