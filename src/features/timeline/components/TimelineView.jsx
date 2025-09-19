@@ -1038,7 +1038,6 @@ const TimelineView = ({
             setCreateTaskContext(null);
           }}
           phases={phases}
-          presentation="inline"
         />
       )}
 
