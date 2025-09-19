@@ -18,8 +18,6 @@ const FinancePage = () => {
 
   const finance = activeProject?.finance || {};
   const [poForm, setPoForm] = useState({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false });
-  const [editingPoId, setEditingPoId] = useState(null);
-  const [poEditDraft, setPoEditDraft] = useState(null);
 
   useEffect(() => {
     if (projects.length === 0) {
