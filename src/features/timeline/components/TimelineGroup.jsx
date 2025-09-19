@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { ChevronDown, CalendarIcon, Flag, CheckCircle, List, Pencil, X } from 'lucide-react';
 import { format, parseISO, isBefore } from 'date-fns';
 
-const TimelineGroup = ({ group, isCollapsed, onTaskClick, onMeetingClick, onTaskEdit, onTaskDelete }) => {
+const TimelineGroup = ({ group, isCollapsed = false, onTaskClick, onMeetingClick, onTaskEdit, onTaskDelete }) => {
   const [collapsed, setCollapsed] = useState(isCollapsed);
   const [expandedId, setExpandedId] = useState(null);
   
@@ -176,10 +176,6 @@ TimelineGroup.propTypes = {
   onMeetingClick: PropTypes.func.isRequired,
   onTaskEdit: PropTypes.func,
   onTaskDelete: PropTypes.func,
-};
-
-TimelineGroup.defaultProps = {
-  isCollapsed: false,
 };
 
 export default TimelineGroup;

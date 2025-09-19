@@ -4,7 +4,7 @@ import { X, Flag, Tag, FileText, User, Plus } from 'lucide-react';
 
 const DEFAULT_PHASES = ['Conceptual', 'Design', 'Validation', 'Startup'];
 
-const TaskModal = ({ tileId, taskId, tiles, projects, updateTask, onClose, phases }) => {
+const TaskModal = ({ tileId, taskId, tiles, projects, updateTask, onClose, phases = undefined, presentation = 'modal' }) => {
   const tile = tiles.find((t) => t.id === tileId);
   if (!tile) return null;
   const task = tile.tasks.find((t) => t.id === taskId);
@@ -83,9 +83,17 @@ const TaskModal = ({ tileId, taskId, tiles, projects, updateTask, onClose, phase
     setNewTag('');
   };
 
+  const isModal = presentation === 'modal';
+  const shellClass = isModal
+    ? 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4'
+    : 'w-full';
+  const bodyClass = isModal
+    ? 'flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-white via-gray-50 to-white shadow-2xl dark:border-gray-800 dark:from-[#0F131E] dark:via-[#111723] dark:to-[#0F131E]'
+    : 'flex w-full flex-col overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-white via-gray-50 to-white shadow-xl dark:border-gray-800 dark:from-[#0F131E] dark:via-[#111723] dark:to-[#0F131E]';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-white via-gray-50 to-white shadow-2xl dark:border-gray-800 dark:from-[#0F131E] dark:via-[#111723] dark:to-[#0F131E]">
+    <div className={shellClass}>
+      <div className={bodyClass}>
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-5 dark:border-white/10">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit task</h2>
@@ -291,10 +299,9 @@ TaskModal.propTypes = {
   updateTask: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
   phases: PropTypes.arrayOf(PropTypes.string),
+  presentation: PropTypes.oneOf(['modal', 'inline']),
 };
 
-TaskModal.defaultProps = {
-  phases: undefined,
-};
+// default props moved to parameter defaults
 
 export default TaskModal;

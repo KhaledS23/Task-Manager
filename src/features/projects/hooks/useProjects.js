@@ -8,19 +8,8 @@ export const useProjects = () => {
     if (saved && Array.isArray(saved.projects)) {
       return saved.projects;
     }
-    return [
-      {
-        id: 'proj-default',
-        name: 'General Tasks',
-        description: 'Tasks without specific project',
-        color: '#6B7280',
-        status: 'active',
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: null,
-        createdAt: new Date().toISOString(),
-        attachments: [],
-      }
-    ];
+    // No forced default project; start empty and let the user create projects.
+    return [];
   });
 
   // Persist projects to localStorage
@@ -51,7 +40,6 @@ export const useProjects = () => {
   };
 
   const deleteProject = (projectId) => {
-    if (projectId === 'proj-default') return; // Can't delete default project
     setProjects(prev => prev.filter(project => project.id !== projectId));
   };
 

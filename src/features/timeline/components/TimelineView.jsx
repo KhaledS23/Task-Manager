@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { motion } from 'framer-motion';
 import {
@@ -22,6 +22,7 @@ import { format, parseISO } from 'date-fns';
 import { getAllProjectActivities, groupActivitiesByTimeRange } from '../../../shared/utils';
 import TimelineGroup from './TimelineGroup';
 import { CreateTaskModal, TaskModal } from '../../tasks';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { MeetingBoard, MeetingEditor } from '../../meetings';
 
 const PhaseColumn = ({
@@ -31,10 +32,10 @@ const PhaseColumn = ({
   onDragStartPhase,
   onDragOverPhase,
   onDragEndPhase,
-  groupingEnabled,
+  groupingEnabled = false,
   onAddTask,
   onOpenTask,
-  onHidePhase,
+  onHidePhase = null,
 }) => (
   <div
     className="flex w-72 shrink-0 flex-col rounded-2xl border border-indigo-100/60 bg-white/90 shadow-lg shadow-indigo-100/40 backdrop-blur dark:border-indigo-500/20 dark:bg-[#111624] dark:shadow-none"
@@ -117,10 +118,7 @@ PhaseColumn.propTypes = {
   onHidePhase: PropTypes.func,
 };
 
-PhaseColumn.defaultProps = {
-  groupingEnabled: false,
-  onHidePhase: null,
-};
+// default props moved to parameter defaults
 
 const TimelineView = ({
   projects,
@@ -131,13 +129,13 @@ const TimelineView = ({
   onProjectEdit,
   onProjectCreate,
   onProjectDelete,
-  onProjectReorder,
-  onTaskCreate,
-  onTaskClick,
-  updateTask,
-  removeTask,
-  phases,
-  onPhaseReorder,
+  onProjectReorder = undefined,
+  onTaskCreate = undefined,
+  onTaskClick = undefined,
+  updateTask = undefined,
+  removeTask = undefined,
+  phases = undefined,
+  onPhaseReorder = undefined,
   onMeetingCreate,
   onMeetingUpdate,
   onMeetingDelete,
@@ -149,7 +147,7 @@ const TimelineView = ({
   onAttachmentLink,
   onAttachmentUnlink,
   attachmentDirStatus,
-  attachmentDirName,
+  attachmentDirName = '',
 }) => {
   const [timeRange, setTimeRange] = useState('month');
   const [selectedDate] = useState(new Date());
@@ -171,6 +169,7 @@ const TimelineView = ({
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [hiddenPhases, setHiddenPhases] = useState([]);
   const [localTaskModalInfo, setLocalTaskModalInfo] = useState(null);
+  const [editingTaskId, setEditingTaskId] = useState(null);
 
   const activeProject = useMemo(() => {
     return projects.find((project) => project.id === selectedProjectId) || projects[0];
@@ -301,6 +300,9 @@ const TimelineView = ({
     setShowCreateTaskModal(true);
   };
 
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const openTaskDetails = (task) => {
     const taskId = task.id ?? task.taskId;
     if (!taskId) return;
@@ -312,14 +314,12 @@ const TimelineView = ({
       tileId: context?.tileId ?? task.tileId ?? null,
       tileTitle: context?.tileTitle ?? task.tileTitle ?? null,
     };
-    let opened = false;
-    if (onTaskClick) {
-      opened = onTaskClick(payload) !== false;
-    }
-    if (!opened && payload.tileId != null) {
-      setLocalTaskModalInfo({ tileId: payload.tileId, taskId });
-    } else if (!onTaskClick && payload.tileId != null) {
-      setSelectedTaskInfo({ tileId: payload.tileId, taskId });
+    // Prefer inline editor; update URL for deep link
+    if (payload.tileId != null) {
+      setEditingTaskId(taskId);
+      if (!location.pathname.startsWith('/task/')) {
+        navigate(`/task/${encodeURIComponent(taskId)}`, { replace: false });
+      }
     }
   };
 
@@ -337,6 +337,24 @@ const TimelineView = ({
     setShowCreateTaskModal(false);
     setCreateTaskContext(null);
   };
+
+  // Deep link handling: open inline when /task/:id or ?task=
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '');
+    let id = params.get('task');
+    if (!id) {
+      const m = /^\/task\/([^/]+)/.exec(location.pathname || '');
+      if (m) id = decodeURIComponent(m[1]);
+    }
+    if (id) {
+      if (!editingTaskId || editingTaskId !== id) {
+        const context = taskLookup.get(id);
+        if (context) setEditingTaskId(id);
+      }
+    } else {
+      if (editingTaskId) setEditingTaskId(null);
+    }
+  }, [location.pathname, location.search, taskLookup, editingTaskId]);
 
   const handleTaskDropToPhase = (event, phase) => {
     event.preventDefault();
@@ -505,17 +523,16 @@ const TimelineView = ({
                       <h4 className="font-medium text-sm truncate text-gray-700 dark:text-gray-200">{project.name}</h4>
                       <p className="text-xs text-gray-500 truncate dark:text-gray-400">{project.description}</p>
                     </div>
-                    {project.id !== 'proj-default' && (
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onProjectDelete(project.id);
-                        }}
-                        className="p-1 text-gray-400 hover:text-red-400"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onProjectDelete(project.id);
+                      }}
+                      className="p-1 text-gray-400 hover:text-red-400"
+                      title="Delete project"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
                     </div>
                   );
@@ -594,23 +611,27 @@ const TimelineView = ({
                   </button>
                 </div>
 
-                {groupingMode === 'time' && (
-                  <div className="flex rounded-lg bg-gray-100 dark:bg-[#1A1D24]">
-                    {['week', 'month', 'quarter', 'year'].map((range) => (
-                      <button
-                        key={range}
-                        className={`px-3 py-1.5 capitalize ${
-                          timeRange === range
-                            ? 'rounded-md bg-white text-gray-700 shadow-sm dark:bg-[#232734] dark:text-gray-100'
-                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-300'
-                        }`}
-                        onClick={() => setTimeRange(range)}
-                      >
-                        {range}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* Keep space stable: render time range always; hide visually when in phases */}
+                <div
+                  className={`flex rounded-lg bg-gray-100 dark:bg-[#1A1D24] ${
+                    groupingMode === 'time' ? '' : 'opacity-0 pointer-events-none'
+                  }`}
+                  aria-hidden={groupingMode !== 'time'}
+                >
+                  {['week', 'month', 'quarter', 'year'].map((range) => (
+                    <button
+                      key={range}
+                      className={`px-3 py-1.5 capitalize ${
+                        timeRange === range
+                          ? 'rounded-md bg-white text-gray-700 shadow-sm dark:bg-[#232734] dark:text-gray-100'
+                          : 'text-gray-500 hover:text-gray-700 dark:text-gray-300'
+                      }`}
+                      onClick={() => setTimeRange(range)}
+                    >
+                      {range}
+                    </button>
+                  ))}
+                </div>
 
                 <button
                   onClick={() => setFiltersOpen((prev) => !prev)}
@@ -924,6 +945,20 @@ const TimelineView = ({
                   <h3 className="text-lg font-medium text-gray-500 mb-2">No tasks yet</h3>
                   <p className="text-gray-400">Start by adding tasks to this project.</p>
                 </div>
+              ) : editingTaskId ? (
+                <TaskModal
+                  tileId={taskLookup.get(editingTaskId)?.tileId}
+                  taskId={editingTaskId}
+                  tiles={tiles}
+                  projects={projects}
+                  updateTask={updateTask}
+                  onClose={() => {
+                    setEditingTaskId(null);
+                    if (location.pathname.startsWith('/task/')) navigate('/timeline');
+                  }}
+                  phases={phases}
+                  presentation="inline"
+                />
               ) : (
                 <div className="space-y-6">
                   {groupedActivities.map((group, index) => (
@@ -1003,31 +1038,11 @@ const TimelineView = ({
             setCreateTaskContext(null);
           }}
           phases={phases}
+          presentation="inline"
         />
       )}
 
-      {selectedTaskInfo && (
-        <TaskModal
-          tileId={selectedTaskInfo.tileId}
-          taskId={selectedTaskInfo.taskId}
-          tiles={tiles}
-          projects={projects}
-          updateTask={updateTask}
-          onClose={() => setSelectedTaskInfo(null)}
-          phases={phases}
-        />
-      )}
-      {localTaskModalInfo && (
-        <TaskModal
-          tileId={localTaskModalInfo.tileId}
-          taskId={localTaskModalInfo.taskId}
-          tiles={tiles}
-          projects={projects}
-          updateTask={updateTask}
-          onClose={() => setLocalTaskModalInfo(null)}
-          phases={phases}
-        />
-      )}
+      {/* Inline editors replace modal variants for tasks; meeting editor handled above */}
     </div>
   );
 };
@@ -1062,15 +1077,6 @@ TimelineView.propTypes = {
   attachmentDirName: PropTypes.string,
 };
 
-TimelineView.defaultProps = {
-  phases: undefined,
-  onProjectReorder: undefined,
-  onTaskCreate: undefined,
-  onTaskClick: undefined,
-  updateTask: undefined,
-  removeTask: undefined,
-  onPhaseReorder: undefined,
-  attachmentDirName: '',
-};
+// default props moved to parameter defaults
 
 export default TimelineView;

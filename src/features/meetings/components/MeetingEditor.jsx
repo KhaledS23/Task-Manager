@@ -72,7 +72,7 @@ const MeetingEditor = ({
   onAttachmentUnlink,
   onAttachmentLink,
   attachmentDirStatus,
-  presentation,
+  presentation = 'modal',
 }) => {
   const buildFormState = (meetingData) => ({
     title: meetingData.title || 'Untitled meeting',
@@ -441,8 +441,6 @@ MeetingEditor.propTypes = {
   presentation: PropTypes.oneOf(['modal', 'inline']),
 };
 
-MeetingEditor.defaultProps = {
-  presentation: 'modal',
-};
+// default props moved to parameter defaults
 
 export default MeetingEditor;

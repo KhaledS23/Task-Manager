@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Plus, CalendarDays, Users, FileText, Paperclip, Trash2, Pencil } from 'lucide-react';
 
-const MeetingBoard = ({ meetings, onCreate, onEdit, onDelete, attachmentResolver }) => {
+const MeetingBoard = ({ meetings, onCreate, onEdit, onDelete, attachmentResolver = () => [] }) => {
   const sortedMeetings = [...meetings].sort((a, b) => {
     const dateA = a.date ? new Date(a.date) : new Date(0);
     const dateB = b.date ? new Date(b.date) : new Date(0);
@@ -110,8 +110,6 @@ MeetingBoard.propTypes = {
   attachmentResolver: PropTypes.func,
 };
 
-MeetingBoard.defaultProps = {
-  attachmentResolver: () => [],
-};
+// default props moved to parameter defaults
 
 export default MeetingBoard;

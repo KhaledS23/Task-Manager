@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Plus,
   Trash2,
@@ -100,15 +101,17 @@ import {
   ProjectModal 
 } from '../features';
 
-// Import pages
-import { TimelinePage, AgentPage, DeepLPage } from '../pages';
+// Lazy-loaded pages for code splitting
+const TimelinePage = lazy(() => import('../pages/dashboard/TimelinePage.jsx'));
+const AgentPage = lazy(() => import('../pages/agent/AgentPage.jsx'));
+const DeepLPage = lazy(() => import('../pages/deepl/DeepLPage.jsx'));
+const SettingsPage = lazy(() => import('./components/SettingsPage.jsx'));
 
 // Import components that are still in App.jsx (to be extracted later)
 import MiniCalendar from './components/MiniCalendar';
 import TileChart from './components/TileChart';
-import SettingsPage from './components/SettingsPage';
 
-export default function App() {
+export function AppShell() {
   // Use custom hooks for state management
   const {
     tiles,
@@ -337,7 +340,7 @@ export default function App() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
-  const [activePage, setActivePage] = useState('timeline');
+  // Routing replaces activePage; see RoutedApp below
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTaskInfo, setSelectedTaskInfo] = useState(null);
   const [showMeetingModal, setShowMeetingModal] = useState(false);
@@ -936,8 +939,12 @@ Please provide a structured action plan with specific daily tasks and priorities
       tileId = fallback.tileId;
       tileTitle = fallback.tileTitle;
     }
-    setSelectedTaskInfo({ tileId, taskId, tileTitle });
-    setShowTaskModal(true);
+    // Push task deep link into URL for share/refresh; inline editor will handle display
+    try {
+      if (!location.pathname.startsWith('/task/')) {
+        navigate(`/task/${encodeURIComponent(taskId)}`);
+      }
+    } catch {}
     return true;
   };
 
@@ -947,6 +954,12 @@ Please provide a structured action plan with specific daily tasks and priorities
     { key: 'dark', icon: Moon, label: 'Dark' },
     { key: 'navy', icon: Palette, label: 'Midnight' },
   ];
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentPath = location.pathname || '/timeline';
+
+  // Deep link handling moved to TimelineView for inline presentation
 
   return (
     <div
@@ -1008,7 +1021,7 @@ Please provide a structured action plan with specific daily tasks and priorities
                 );
               })()}
               <button
-                onClick={() => setActivePage('settings')}
+                onClick={() => navigate('/settings')}
                 className="p-2 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-[#1A1D24]"
                 title="Open settings"
               >
@@ -1022,17 +1035,17 @@ Please provide a structured action plan with specific daily tasks and priorities
         <div className="bg-white navy-surface rounded-xl shadow-md p-4 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-gray-600 dark:text-gray-300">
             {[
-              { key: 'timeline', label: 'Timeline', icon: CalendarCheck },
-              { key: 'agent', label: 'Agent', icon: Bot },
-              { key: 'deepl', label: 'DeepL', icon: Sparkles },
-              { key: 'settings', label: 'Settings', icon: Settings },
+              { key: 'timeline', label: 'Timeline', icon: CalendarCheck, path: '/timeline' },
+              { key: 'agent', label: 'Agent', icon: Bot, path: '/agent' },
+              { key: 'deepl', label: 'DeepL', icon: Sparkles, path: '/deepl' },
+              { key: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
             ].map((item) => {
               const Icon = item.icon;
-              const isActive = activePage === item.key;
+              const isActive = currentPath === item.path || (item.path === '/timeline' && (currentPath === '/' || currentPath.startsWith('/timeline') || currentPath.startsWith('/task/')));
               return (
-                <button
+                <Link
                   key={item.key}
-                  onClick={() => setActivePage(item.key)}
+                  to={item.path}
                   className={`flex flex-col items-center gap-1 rounded-lg px-4 py-2 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:focus-visible:ring-indigo-500 ${
                     isActive
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30'
@@ -1041,7 +1054,7 @@ Please provide a structured action plan with specific daily tasks and priorities
                 >
                   <Icon className="w-5 h-5" />
                   <span>{item.label}</span>
-                </button>
+                </Link>
               );
             })}
           </div>
@@ -1049,8 +1062,13 @@ Please provide a structured action plan with specific daily tasks and priorities
 
         {/* Main Content */}
         <div className="space-y-6">
-          {activePage === 'timeline' && (
-            <TimelinePage
+          <Suspense fallback={<div className="text-center text-sm text-gray-500 py-8">Loading…</div>}>
+            <Routes future={{ v7_relativeSplatPath: true }}>
+              <Route path="/" element={<Navigate to="/timeline" replace />} />
+              <Route
+                path="/task/:taskId"
+                element={
+                  <TimelinePage
               projects={projects}
               tiles={tiles}
               meetings={meetings}
@@ -1096,54 +1114,95 @@ Please provide a structured action plan with specific daily tasks and priorities
               onAttachmentUnlink={unlinkAttachment}
               attachmentDirStatus={attachmentDirStatus}
               attachmentDirName={attachmentDirName}
-            />
-          )}
-
-          {/* Other pages would go here */}
-          {activePage === 'agent' && (
-            <AgentPage
+                  />
+                }
+              />
+              <Route
+                path="/timeline"
+                element={
+                  <TimelinePage
+              projects={projects}
+              tiles={tiles}
+              meetings={meetings}
+              selectedProjectId={selectedProjectId}
+              onProjectChange={setSelectedProjectId}
+              onProjectEdit={(project) => {
+                setEditingProject(project);
+                setShowProjectModal(true);
+              }}
+              onProjectCreate={(projectData) => {
+                addProject(projectData);
+              }}
+              onProjectSave={(projectId, updates) => {
+                updateProject(projectId, updates);
+              }}
+              onProjectClose={() => {
+                setShowProjectModal(false);
+                setEditingProject(null);
+              }}
+              onProjectDelete={(projectId) => {
+                if (confirm('Delete this project? Tasks under it remain.')) {
+                  deleteProject(projectId);
+                }
+              }}
+              onProjectReorder={(sourceId, targetId) => {
+                reorderProjects(sourceId, targetId);
+              }}
+              onTaskCreate={(taskData) => createTask(taskData)}
+              onTaskClick={handleTaskOpen}
+              updateTask={updateTask}
+              removeTask={removeTask}
+              phases={settings.phases}
+              onPhaseReorder={handlePhaseReorder}
+              onMeetingCreate={addMeeting}
+              onMeetingUpdate={updateMeeting}
+              onMeetingDelete={handleMeetingDelete}
+              onLinkTaskToMeeting={linkTaskToMeeting}
+              onUnlinkTaskFromMeeting={unlinkTaskFromMeeting}
+              onAttachmentUpload={attachFile}
+              onAttachmentDownload={downloadAttachment}
+              onAttachmentDelete={deleteAttachment}
+              onAttachmentLink={linkAttachment}
+              onAttachmentUnlink={unlinkAttachment}
+              attachmentDirStatus={attachmentDirStatus}
+              attachmentDirName={attachmentDirName}
+                  />
+                }
+              />
+              <Route
+                path="/agent"
+                element={
+                  <AgentPage
               projects={projects}
               tiles={tiles}
               meetings={meetings}
               selectedProjectId={selectedProjectId}
               createTask={createTask}
               settings={settings}
-            />
-          )}
-
-          {activePage === 'deepl' && (
-            <DeepLPage settings={settings} />
-          )}
-
-          {activePage === 'settings' && (
-            <SettingsPage
+                  />
+                }
+              />
+              <Route path="/deepl" element={<DeepLPage settings={settings} />} />
+              <Route
+                path="/settings"
+                element={
+                  <SettingsPage
               settings={settings}
               setSettings={setSettings}
-              onNavigateBack={() => setActivePage('timeline')}
+                      onNavigateBack={() => navigate('/timeline')}
               attachmentDirStatus={attachmentDirStatus}
               attachmentDirName={attachmentDirName}
               onChooseAttachmentDirectory={selectAttachmentDirectory}
               onClearAttachmentDirectory={clearAttachmentDirectory}
               onRetryAttachmentPermission={ensureAttachmentDirectory}
-            />
-          )}
+                    />
+                }
+              />
+            </Routes>
+          </Suspense>
         </div>
 
-        {/* Modals */}
-        {showTaskModal && selectedTaskInfo && (
-          <TaskModal
-            tileId={selectedTaskInfo.tileId}
-            taskId={selectedTaskInfo.taskId}
-            tiles={tiles}
-            projects={projects}
-            updateTask={updateTask}
-            onClose={() => {
-              setShowTaskModal(false);
-              setSelectedTaskInfo(null);
-            }}
-            phases={settings.phases}
-          />
-        )}
+        {/* Task editing is handled inline within TimelineView */}
 
         {showProjectModal && (
           <ProjectModal
@@ -1171,5 +1230,13 @@ Please provide a structured action plan with specific daily tasks and priorities
         </footer>
       </div>
     </div>
+    );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppShell />
+    </BrowserRouter>
   );
 }

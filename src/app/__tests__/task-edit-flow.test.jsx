@@ -1,7 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import App from '../App.jsx';
+import { MemoryRouter } from 'react-router-dom';
+import { vi } from 'vitest';
+import { AppShell } from '@/app/App';
 import { DEFAULT_SETTINGS, DEFAULT_TOKEN_INFO, STORAGE_KEYS } from '../../shared/utils';
+
+vi.mock('@/shared/services/filesystem', () => ({
+  getAttachmentDirectoryHandle: vi.fn(async () => null),
+  readFile: vi.fn(async () => null),
+  writeFile: vi.fn(async () => null),
+}));
 
 describe('Task edit flow', () => {
   beforeEach(() => {
@@ -57,7 +65,11 @@ describe('Task edit flow', () => {
   });
 
   it('opens the edit modal when clicking a task tile', async () => {
-    render(<App />);
+    render(
+      <MemoryRouter initialEntries={["/timeline"]}>
+        <AppShell />
+      </MemoryRouter>
+    );
 
     const taskCard = await screen.findByText('Finalize Launch Plan');
     await userEvent.click(taskCard);
