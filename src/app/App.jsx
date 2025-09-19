@@ -925,19 +925,20 @@ Please provide a structured action plan with specific daily tasks and priorities
   };
 
   const handleTaskOpen = (activity) => {
-    if (!activity) return;
+    if (!activity) return false;
     const taskId = activity.id ?? activity.taskId;
-    if (!taskId) return;
+    if (!taskId) return false;
     let tileId = activity.tileId ?? activity.tile?.id ?? null;
     let tileTitle = activity.tileTitle ?? activity.tile?.title ?? null;
     if (tileId == null) {
       const fallback = findTaskContext(taskId);
-      if (!fallback) return;
+      if (!fallback) return false;
       tileId = fallback.tileId;
       tileTitle = fallback.tileTitle;
     }
     setSelectedTaskInfo({ tileId, taskId, tileTitle });
     setShowTaskModal(true);
+    return true;
   };
 
   const themeMode = settings?.theme || 'dark';

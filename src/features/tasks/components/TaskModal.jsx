@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { X, Flag, Tag, FileText, Clock, User } from 'lucide-react';
+import { X, Flag, Tag, FileText, User, Plus } from 'lucide-react';
 
 const DEFAULT_PHASES = ['Conceptual', 'Design', 'Validation', 'Startup'];
 

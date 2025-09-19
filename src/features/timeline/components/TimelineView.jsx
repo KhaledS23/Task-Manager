@@ -170,6 +170,7 @@ const TimelineView = ({
   const [phaseDrag, setPhaseDrag] = useState({ active: null, over: null });
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [hiddenPhases, setHiddenPhases] = useState([]);
+  const [localTaskModalInfo, setLocalTaskModalInfo] = useState(null);
 
   const activeProject = useMemo(() => {
     return projects.find((project) => project.id === selectedProjectId) || projects[0];
@@ -311,9 +312,13 @@ const TimelineView = ({
       tileId: context?.tileId ?? task.tileId ?? null,
       tileTitle: context?.tileTitle ?? task.tileTitle ?? null,
     };
+    let opened = false;
     if (onTaskClick) {
-      onTaskClick(payload);
-    } else if (payload.tileId != null) {
+      opened = onTaskClick(payload) !== false;
+    }
+    if (!opened && payload.tileId != null) {
+      setLocalTaskModalInfo({ tileId: payload.tileId, taskId });
+    } else if (!onTaskClick && payload.tileId != null) {
       setSelectedTaskInfo({ tileId: payload.tileId, taskId });
     }
   };
@@ -1001,7 +1006,7 @@ const TimelineView = ({
         />
       )}
 
-      {!onTaskClick && selectedTaskInfo && (
+      {selectedTaskInfo && (
         <TaskModal
           tileId={selectedTaskInfo.tileId}
           taskId={selectedTaskInfo.taskId}
@@ -1009,6 +1014,17 @@ const TimelineView = ({
           projects={projects}
           updateTask={updateTask}
           onClose={() => setSelectedTaskInfo(null)}
+          phases={phases}
+        />
+      )}
+      {localTaskModalInfo && (
+        <TaskModal
+          tileId={localTaskModalInfo.tileId}
+          taskId={localTaskModalInfo.taskId}
+          tiles={tiles}
+          projects={projects}
+          updateTask={updateTask}
+          onClose={() => setLocalTaskModalInfo(null)}
           phases={phases}
         />
       )}
