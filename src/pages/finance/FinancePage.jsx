@@ -1,0 +1,371 @@
+import React, { useMemo, useState } from 'react';
+import PropTypes from 'prop-types';
+import { Plus, Trash2, Link as LinkIcon, Calendar, Flag, CheckCircle2 } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
+
+import { useFinanceProjects } from '../../features/finance/hooks/useFinanceProjects';
+
+const FinancePage = ({}) => {
+  const { projects, addProject, updateProject, deleteProject, reorderProjects } = useFinanceProjects();
+  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || null);
+  const [draggingProjectId, setDraggingProjectId] = useState(null);
+  const [dragOverProjectId, setDragOverProjectId] = useState(null);
+
+  const activeProject = useMemo(() => {
+    return projects.find((p) => p.id === selectedProjectId) || projects[0] || null;
+  }, [projects, selectedProjectId]);
+
+  const finance = activeProject?.finance || {};
+  const [poForm, setPoForm] = useState({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '' });
+
+  const handleAddPO = () => {
+    const supplier = poForm.supplier.trim();
+    const number = poForm.number.trim();
+    const value = parseFloat(poForm.value || '0');
+    if (!supplier || !number || !value) return;
+    const nextPOs = Array.isArray(finance.pos) ? [...finance.pos] : [];
+    nextPOs.push({ id: `po-${Date.now()}`, supplier, number, value, link: poForm.link?.trim() || '', description: poForm.description?.trim() || '', committedAt: poForm.committedAt || null, deliveryAt: poForm.deliveryAt || null, delivered: false });
+    onProjectSave(activeProject.id, { finance: { ...finance, pos: nextPOs } });
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '' });
+  };
+
+  const totals = useMemo(() => {
+    const limit = parseFloat(finance.limit || '0') || 0;
+    const list = Array.isArray(finance.pos) ? finance.pos : [];
+    const actual = list.filter(p => p.delivered).reduce((s,p)=> s + (parseFloat(p.value||0)||0),0);
+    const committed = list.filter(p => !p.delivered).reduce((s,p)=> s + (parseFloat(p.value||0)||0),0);
+    const used = committed + actual;
+    const remaining = Math.max(0, limit - used);
+    const pct = limit > 0 ? Math.round((used/limit)*100) : 0;
+    return { limit, committed, actual, used, remaining, pct };
+  }, [finance]);
+
+  const lineData = useMemo(() => {
+    const limit = parseFloat(finance.limit || '0') || 0;
+    const list = (Array.isArray(finance.pos) ? finance.pos : [])
+      .filter(p => p.committedAt)
+      .slice()
+      .sort((a,b) => new Date(a.committedAt) - new Date(b.committedAt));
+    const data = [];
+    let running = limit;
+    if (list.length === 0) {
+      data.push({ date: new Date().toISOString().slice(0,10), remaining: running });
+      return data;
+    }
+    data.push({ date: list[0].committedAt, remaining: running });
+    for (const po of list) {
+      const val = parseFloat(po.value || 0) || 0;
+      running = Math.max(0, running - val);
+      data.push({ date: po.committedAt, remaining: running, node: true });
+    }
+    return data;
+  }, [finance]);
+
+  const handleLinkFile = () => {
+    if (!activeProject) return;
+    const hrefInput = window.prompt('Enter file path or URL to link');
+    const href = hrefInput?.trim();
+    if (!href) return;
+    const defaultName = href.split(/[\\/]/).pop() || 'Linked file';
+    const nameInput = window.prompt('Display name for this link', defaultName);
+    const name = (nameInput && nameInput.trim()) || defaultName;
+    onAttachmentLink({ projectId: activeProject.id, meetingId: null, href, name });
+  };
+
+  const attachments = useMemo(() => Array.isArray(activeProject?.attachments) ? activeProject.attachments : [], [activeProject]);
+
+  const handleReorderProjects = (sourceId, targetId) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    reorderProjects(sourceId, targetId);
+    setDragOverProjectId(null);
+    setDraggingProjectId(null);
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto">
+      <div className="flex">
+        {/* Project Sidebar */}
+        <div className="mr-4 w-80 overflow-hidden rounded-xl bg-white navy-surface shadow-md dark:bg-[#0F1115] dark:border dark:border-gray-800">
+          <div className="p-3.5">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Projects</h3>
+              <button
+                onClick={() => addProject({})}
+                className="rounded-full border border-gray-200 p-1.5 text-gray-500 transition hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300"
+                title="Create project"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {projects.length === 0 && (
+                <div className="rounded-lg border border-dashed border-gray-300 p-4 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  No projects yet. Create one to start.
+                </div>
+              )}
+              {projects.map((project) => {
+                const isSelected = project.id === (activeProject?.id || null);
+                const isDragOver = dragOverProjectId === project.id;
+                return (
+                  <div
+                    key={project.id}
+                    draggable
+                    onDragStart={(event) => {
+                      setDraggingProjectId(project.id);
+                      event.dataTransfer.setData('application/project-id', project.id);
+                    }}
+                    onDragOver={(event) => {
+                      if (!draggingProjectId || draggingProjectId === project.id) return;
+                      event.preventDefault();
+                      setDragOverProjectId(project.id);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const sourceId = draggingProjectId || event.dataTransfer.getData('application/project-id');
+                      handleReorderProjects(sourceId, project.id);
+                    }}
+                    onDragLeave={() => setDragOverProjectId((prev) => (prev === project.id ? null : prev))}
+                    className={`p-2.5 rounded-md border transition ${
+                      isSelected
+                        ? 'bg-gray-50 border-gray-300 dark:bg-[#1A1D24] dark:border-gray-700'
+                        : 'bg-white border-transparent hover:bg-gray-50 dark:bg-[#0F1115] dark:hover:bg-[#1A1D24]'
+                    } ${isDragOver ? 'ring-2 ring-indigo-400' : ''}`}
+                    onClick={() => setSelectedProjectId(project.id)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: project.color }} />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm truncate text-gray-700 dark:text-gray-200">{project.name}</h4>
+                        <p className="text-xs text-gray-500 truncate dark:text-gray-400">{project.description}</p>
+                      </div>
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteProject(project.id);
+                      }}
+                        className="p-1 text-gray-400 hover:text-red-400"
+                        title="Delete project"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 rounded-xl bg-white navy-surface p-4 shadow-md dark:bg-[#0F1115] dark:border dark:border-gray-800">
+          {!activeProject ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">Create a project to start financial planning.</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Budget ID</div>
+                  <input
+                    value={finance.budgetId || ''}
+                    onChange={(e) => updateProject(activeProject.id, { finance: { ...finance, budgetId: e.target.value } })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                    placeholder="e.g., BGT-2025-ACME"
+                  />
+                </div>
+                <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Budget limit</div>
+                  <input
+                    type="number"
+                    value={finance.limit || ''}
+                    onChange={(e) => updateProject(activeProject.id, { finance: { ...finance, limit: e.target.value } })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                    placeholder="e.g., 50000"
+                  />
+                </div>
+                <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expiry</div>
+                  <input
+                    type="date"
+                    value={finance.expiry || ''}
+                    onChange={(e) => updateProject(activeProject.id, { finance: { ...finance, expiry: e.target.value } })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-5">
+                {[
+                  { label: 'Budget', value: totals.limit },
+                  { label: 'Committed', value: totals.committed },
+                  { label: 'Actual', value: totals.actual },
+                  { label: 'Remaining', value: totals.remaining },
+                ].map((kpi) => (
+                  <div key={kpi.label} className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{kpi.label}</div>
+                    <div className="mt-1 text-lg font-semibold text-gray-800 dark:text-gray-100">${(kpi.value||0).toLocaleString()}</div>
+                  </div>
+                ))}
+                <div className={`rounded-xl border p-4 ${totals.pct <= 100 ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700' : 'border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800'}`}>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Consumed</div>
+                  <div className={`mt-1 text-lg font-semibold ${totals.pct <= 100 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>{totals.pct}%</div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                <div className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Remaining over time</div>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={lineData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
+                      <defs>
+                        <linearGradient id="remainStroke" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#8B5CF6" />
+                          <stop offset="100%" stopColor="#06B6D4" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <ReferenceLine y={0} stroke="#94a3b8" />
+                      <Line type="monotone" dataKey="remaining" stroke="url(#remainStroke)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                  <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Purchase Orders</div>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <input
+                      value={poForm.supplier}
+                      onChange={(e) => setPoForm((p) => ({ ...p, supplier: e.target.value }))}
+                      placeholder="Supplier"
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                    />
+                    <input
+                      value={poForm.number}
+                      onChange={(e) => setPoForm((p) => ({ ...p, number: e.target.value }))}
+                      placeholder="PO #"
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                    />
+                    <input
+                      type="number"
+                      value={poForm.value}
+                      onChange={(e) => setPoForm((p) => ({ ...p, value: e.target.value }))}
+                      placeholder="Value"
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                    />
+                    <input
+                      value={poForm.link}
+                      onChange={(e) => setPoForm((p) => ({ ...p, link: e.target.value }))}
+                      placeholder="Link to PO file (URL)"
+                      className="md:col-span-3 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                    />
+                    <input
+                      value={poForm.description}
+                      onChange={(e) => setPoForm((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="Description"
+                      className="md:col-span-3 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                    />
+                    <div className="grid grid-cols-2 gap-2 md:col-span-3">
+                      <div>
+                        <label className="text-xs text-gray-500 dark:text-gray-400">Committed date</label>
+                        <input type="date" value={poForm.committedAt} onChange={(e)=> setPoForm((p)=> ({...p, committedAt: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 dark:text-gray-400">Delivery date</label>
+                        <input type="date" value={poForm.deliveryAt} onChange={(e)=> setPoForm((p)=> ({...p, deliveryAt: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={handleAddPO} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                      Add PO
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {(finance.pos || []).map((po) => {
+                      const overdue = po.deliveryAt && !po.delivered && new Date(po.deliveryAt) < new Date();
+                      return (
+                        <div key={po.id} className="rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-800 dark:bg-[#10131A]">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
+                                <span className="font-medium truncate">{po.supplier}</span>
+                                <span className="text-gray-400">•</span>
+                                <span className="truncate">{po.number}</span>
+                                {overdue && <Flag className="w-3.5 h-3.5 text-red-500" title="Delivery overdue" />}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                <span>Committed: {po.committedAt || '—'}</span>
+                                <span className="mx-2">|</span>
+                                <span>Delivery: {po.deliveryAt || '—'}</span>
+                                {po.link && (
+                                  <>
+                                    <span className="mx-2">|</span>
+                                    <a className="underline" href={po.link} target="_blank" rel="noreferrer">Link</a>
+                                  </>
+                                )}
+                              </div>
+                              {po.description && (
+                                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{po.description}</div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${po.delivered ? 'border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-300' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
+                                <button
+                                  onClick={() => {
+                                    const next = (finance.pos || []).map((x) => x.id === po.id ? { ...x, delivered: !x.delivered } : x);
+                                    onProjectSave(activeProject.id, { finance: { ...finance, pos: next } });
+                                  }}
+                                  title="Toggle delivered"
+                                  className={`h-4 w-4 rounded-full border ${po.delivered ? 'bg-emerald-500 border-emerald-600' : 'border-gray-400'} flex items-center justify-center`}
+                                >
+                                  {po.delivered && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                </button>
+                                Delivered
+                              </div>
+                              <div className="font-semibold text-gray-800 dark:text-gray-100">${Number(po.value || 0).toLocaleString()}</div>
+                              <button
+                                onClick={() => {
+                                  const next = (finance.pos || []).filter((x) => x.id !== po.id);
+                                  onProjectSave(activeProject.id, { finance: { ...finance, pos: next } });
+                                }}
+                                className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+FinancePage.propTypes = {
+  projects: PropTypes.array.isRequired,
+  selectedProjectId: PropTypes.string,
+  onProjectChange: PropTypes.func.isRequired,
+  onProjectCreate: PropTypes.func.isRequired,
+  onProjectEdit: PropTypes.func.isRequired,
+  onProjectDelete: PropTypes.func.isRequired,
+  onProjectSave: PropTypes.func.isRequired,
+  onProjectReorder: PropTypes.func.isRequired,
+  onAttachmentUpload: PropTypes.func.isRequired,
+  onAttachmentDownload: PropTypes.func.isRequired,
+  onAttachmentDelete: PropTypes.func.isRequired,
+  onAttachmentLink: PropTypes.func.isRequired,
+};
+
+export default FinancePage;

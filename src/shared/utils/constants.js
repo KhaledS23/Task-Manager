@@ -23,6 +23,10 @@ export const DEFAULT_SETTINGS = {
   supabaseAnonKey: '',
   supabaseWorkspaceId: '',
   supabaseEnabled: false,
+  // Page visibility
+  showAgent: true,
+  showDeepL: true,
+  showFinance: true,
 };
 
 // Token management
@@ -59,4 +63,5 @@ export const STORAGE_KEYS = {
   WORK_CHECKLIST: 'workChecklist',
   TOKENS: 'workChecklistTokens',
   AGENT_CHAT: 'workChecklistAgentChat',
+  FINANCE: 'workFinance',
 };

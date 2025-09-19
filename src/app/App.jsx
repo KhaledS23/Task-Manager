@@ -106,6 +106,7 @@ const TimelinePage = lazy(() => import('../pages/dashboard/TimelinePage.jsx'));
 const AgentPage = lazy(() => import('../pages/agent/AgentPage.jsx'));
 const DeepLPage = lazy(() => import('../pages/deepl/DeepLPage.jsx'));
 const SettingsPage = lazy(() => import('./components/SettingsPage.jsx'));
+const FinancePage = lazy(() => import('../pages/finance/FinancePage.jsx'));
 
 // Import components that are still in App.jsx (to be extracted later)
 import MiniCalendar from './components/MiniCalendar';
@@ -1035,11 +1036,12 @@ Please provide a structured action plan with specific daily tasks and priorities
         <div className="bg-white navy-surface rounded-xl shadow-md p-4 mb-6 dark:bg-[#0F1115] dark:border dark:border-gray-800">
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-gray-600 dark:text-gray-300">
             {[
-              { key: 'timeline', label: 'Timeline', icon: CalendarCheck, path: '/timeline' },
-              { key: 'agent', label: 'Agent', icon: Bot, path: '/agent' },
-              { key: 'deepl', label: 'DeepL', icon: Sparkles, path: '/deepl' },
-              { key: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
-            ].map((item) => {
+              { key: 'timeline', label: 'Timeline', icon: CalendarCheck, path: '/timeline', show: true },
+              { key: 'finance', label: 'Finance', icon: PieChart, path: '/finance', show: settings?.showFinance !== false },
+              { key: 'agent', label: 'Agent', icon: Bot, path: '/agent', show: settings?.showAgent !== false },
+              { key: 'deepl', label: 'DeepL', icon: Sparkles, path: '/deepl', show: settings?.showDeepL !== false },
+              { key: 'settings', label: 'Settings', icon: Settings, path: '/settings', show: true },
+            ].filter((n) => n.show).map((item) => {
               const Icon = item.icon;
               const isActive = currentPath === item.path || (item.path === '/timeline' && (currentPath === '/' || currentPath.startsWith('/timeline') || currentPath.startsWith('/task/')));
               return (
@@ -1183,6 +1185,25 @@ Please provide a structured action plan with specific daily tasks and priorities
                 }
               />
               <Route path="/deepl" element={<DeepLPage settings={settings} />} />
+              <Route
+                path="/finance"
+                element={
+                  <FinancePage
+                    projects={projects}
+                    selectedProjectId={selectedProjectId}
+                    onProjectChange={setSelectedProjectId}
+                    onProjectCreate={(projectData) => addProject(projectData || { name: 'New Project' })}
+                    onProjectEdit={(project) => { setEditingProject(project); setShowProjectModal(true); }}
+                    onProjectDelete={(projectId) => { if (confirm('Delete this project?')) deleteProject(projectId); }}
+                    onProjectSave={(projectId, updates) => updateProject(projectId, updates)}
+                    onProjectReorder={(sourceId, targetId) => reorderProjects(sourceId, targetId)}
+                    onAttachmentUpload={attachFile}
+                    onAttachmentDownload={downloadAttachment}
+                    onAttachmentDelete={deleteAttachment}
+                    onAttachmentLink={linkAttachment}
+                  />
+                }
+              />
               <Route
                 path="/settings"
                 element={

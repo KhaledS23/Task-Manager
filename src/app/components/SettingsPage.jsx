@@ -136,6 +136,25 @@ const SettingsPage = ({
       </div>
 
       <div className="grid gap-6">
+        {/* Pages visibility */}
+        <section className="rounded-xl border border-gray-200 bg-white navy-surface p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pages</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Choose which pages appear in the navigation.</p>
+          <div className="flex flex-col gap-2 text-sm">
+            <label className="inline-flex items-center gap-2 text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={settings.showFinance !== false} onChange={(e) => setSettings((prev) => ({ ...prev, showFinance: e.target.checked }))} />
+              Finance
+            </label>
+            <label className="inline-flex items-center gap-2 text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={settings.showAgent !== false} onChange={(e) => setSettings((prev) => ({ ...prev, showAgent: e.target.checked }))} />
+              Agent
+            </label>
+            <label className="inline-flex items-center gap-2 text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={settings.showDeepL !== false} onChange={(e) => setSettings((prev) => ({ ...prev, showDeepL: e.target.checked }))} />
+              DeepL
+            </label>
+          </div>
+        </section>
         {/* Appearance */}
         <section className="rounded-xl border border-gray-200 bg-white navy-surface p-6 shadow-sm dark:border-gray-800 dark:bg-[#0F1115]">
           <div className="flex items-center justify-between gap-4 flex-wrap">
