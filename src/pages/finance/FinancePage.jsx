@@ -543,7 +543,7 @@ const FinancePage = () => {
                                     const next = (finance.pos || []).map((x) => x.id === po.id ? { 
                                       ...x, 
                                       planned: !x.planned,
-                                      delivered: x.planned ? false : x.delivered // If setting planned=true, ensure delivered=false
+                                      delivered: !x.planned ? false : x.delivered // If setting planned=true, ensure delivered=false
                                     } : x);
                                     updateProject(activeProject.id, { finance: { ...finance, pos: next } });
                                   }}
@@ -560,7 +560,7 @@ const FinancePage = () => {
                                     const next = (finance.pos || []).map((x) => x.id === po.id ? { 
                                       ...x, 
                                       delivered: !x.delivered,
-                                      planned: x.delivered ? false : x.planned // If setting delivered=true, ensure planned=false
+                                      planned: !x.delivered ? false : x.planned // If setting delivered=true, ensure planned=false
                                     } : x);
                                     updateProject(activeProject.id, { finance: { ...finance, pos: next } });
                                   }}
