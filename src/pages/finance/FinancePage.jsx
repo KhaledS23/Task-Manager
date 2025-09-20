@@ -12,6 +12,8 @@ const FinancePage = () => {
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [projectNameDraft, setProjectNameDraft] = useState('');
   const [editingPoId, setEditingPoId] = useState(null);
+  const [poFilter, setPoFilter] = useState('all'); // 'all', 'planned', 'committed', 'delivered'
+  const [supplierFilter, setSupplierFilter] = useState('all');
 
   const activeProject = useMemo(() => projects.find((p) => p.id === selectedProjectId) || projects[0] || null, [projects, selectedProjectId]);
 
@@ -148,6 +150,33 @@ const FinancePage = () => {
     });
     return data;
   }, [finance, lineData]);
+
+  // Get unique suppliers for dropdown
+  const uniqueSuppliers = useMemo(() => {
+    const suppliers = (finance.pos || []).map(po => po.supplier).filter(Boolean);
+    return [...new Set(suppliers)].sort();
+  }, [finance.pos]);
+
+  // Filter POs based on selected filters
+  const filteredPOs = useMemo(() => {
+    let filtered = finance.pos || [];
+    
+    // Apply status filter
+    if (poFilter === 'planned') {
+      filtered = filtered.filter(po => po.planned);
+    } else if (poFilter === 'committed') {
+      filtered = filtered.filter(po => !po.planned && !po.delivered);
+    } else if (poFilter === 'delivered') {
+      filtered = filtered.filter(po => po.delivered);
+    }
+    
+    // Apply supplier filter
+    if (supplierFilter !== 'all') {
+      filtered = filtered.filter(po => po.supplier === supplierFilter);
+    }
+    
+    return filtered;
+  }, [finance.pos, poFilter, supplierFilter]);
 
 
   const handleReorderProjects = (sourceId, targetId) => {
@@ -428,12 +457,36 @@ const FinancePage = () => {
 
                 {/* Right: PO list with scroll */}
                 <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                  <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Purchase Orders</div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">Purchase Orders</div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={poFilter}
+                        onChange={(e) => setPoFilter(e.target.value)}
+                        className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                      >
+                        <option value="all">All POs</option>
+                        <option value="planned">Planned</option>
+                        <option value="committed">Committed</option>
+                        <option value="delivered">Delivered</option>
+                      </select>
+                      <select
+                        value={supplierFilter}
+                        onChange={(e) => setSupplierFilter(e.target.value)}
+                        className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                      >
+                        <option value="all">All Suppliers</option>
+                        {uniqueSuppliers.map(supplier => (
+                          <option key={supplier} value={supplier}>{supplier}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <div className="max-h-[500px] overflow-y-auto pr-1 space-y-2">
-                    {(finance.pos || []).map((po) => {
+                    {filteredPOs.map((po) => {
                       const overdue = po.deliveryAt && !po.delivered && new Date(po.deliveryAt) < new Date();
                       return (
-                        <div key={po.id} className={`rounded-lg border bg-white p-3 text-sm dark:border-gray-800 dark:bg-[#10131A] ${po.delivered ? 'border-l-4 border-emerald-500' : 'border-l-4 border-sky-500'}`}>
+                        <div key={po.id} className={`rounded-lg border p-3 text-sm ${po.planned ? 'bg-gray-100 border-l-4 border-gray-400 dark:bg-gray-800 dark:border-gray-600' : po.delivered ? 'bg-white border-l-4 border-emerald-500 dark:border-gray-800 dark:bg-[#10131A]' : 'bg-white border-l-4 border-sky-500 dark:border-gray-800 dark:bg-[#10131A]'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <div className={`${editingPoId === po.id ? 'ring-2 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
@@ -454,6 +507,19 @@ const FinancePage = () => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
+                              <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${po.planned ? 'border-gray-400 text-gray-600 dark:border-gray-600 dark:text-gray-400' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
+                                <button
+                                  onClick={() => {
+                                    const next = (finance.pos || []).map((x) => x.id === po.id ? { ...x, planned: !x.planned } : x);
+                                    updateProject(activeProject.id, { finance: { ...finance, pos: next } });
+                                  }}
+                                  title="Toggle planned"
+                                  className={`h-4 w-4 rounded-full border ${po.planned ? 'bg-gray-500 border-gray-600' : 'border-gray-400'} flex items-center justify-center`}
+                                >
+                                  {po.planned && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                </button>
+                                Planned
+                              </div>
                               <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${po.delivered ? 'border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-300' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
                                 <button
                                   onClick={() => {
