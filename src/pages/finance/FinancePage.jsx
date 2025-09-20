@@ -18,7 +18,7 @@ const FinancePage = () => {
   const activeProject = useMemo(() => projects.find((p) => p.id === selectedProjectId) || projects[0] || null, [projects, selectedProjectId]);
 
   const finance = activeProject?.finance || {};
-  const [poForm, setPoForm] = useState({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
+  const [poForm, setPoForm] = useState({ supplier: '', number: '', value: '', link: '', description: '', otherIds: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
 
   useEffect(() => {
     if (projects.length === 0) {
@@ -41,13 +41,14 @@ const FinancePage = () => {
       value,
       link: poForm.link?.trim() || '',
       description: poForm.description?.trim() || '',
+      otherIds: poForm.otherIds?.trim() || '',
       committedAt: poForm.committedAt || null,
       deliveryAt: poForm.deliveryAt || null,
       delivered: !!poForm.delivered,
       planned: !!poForm.planned,
     });
     updateProject(activeProject.id, { finance: { ...finance, pos: nextPOs } });
-    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', otherIds: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
   };
 
   const startEditingPO = (po) => {
@@ -58,6 +59,7 @@ const FinancePage = () => {
       value: po.value || '',
       link: po.link || '',
       description: po.description || '',
+      otherIds: po.otherIds || '',
       committedAt: po.committedAt || '',
       deliveryAt: po.deliveryAt || '',
       planned: !!po.planned,
@@ -81,6 +83,7 @@ const FinancePage = () => {
             value,
             link: poForm.link?.trim() || '',
             description: poForm.description?.trim() || '',
+            otherIds: poForm.otherIds?.trim() || '',
             committedAt: poForm.committedAt || null,
             deliveryAt: poForm.deliveryAt || null,
             planned: !!poForm.planned,
@@ -90,12 +93,12 @@ const FinancePage = () => {
     );
     updateProject(activeProject.id, { finance: { ...finance, pos: nextPOs } });
     setEditingPoId(null);
-    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', otherIds: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
   };
 
   const cancelEditingPO = () => {
     setEditingPoId(null);
-    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', otherIds: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
   };
 
   const totals = useMemo(() => {
@@ -351,7 +354,7 @@ const FinancePage = () => {
                 ].map((kpi) => (
                   <div key={kpi.label} className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                     <div className="text-xs text-gray-500 dark:text-gray-400">{kpi.label}</div>
-                    <div className={`mt-1 text-lg font-semibold ${kpi.colorClass || 'text-gray-800 dark:text-gray-100'}`}>${(kpi.value||0).toLocaleString()}</div>
+                    <div className={`mt-1 text-lg font-semibold ${kpi.colorClass || 'text-gray-800 dark:text-gray-100'}`}>€{(kpi.value||0).toLocaleString()}</div>
                   </div>
                 ))}
                 <div className={`rounded-xl border p-4 ${totals.pct <= 100 ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700' : 'border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800'}`}>
@@ -403,7 +406,7 @@ const FinancePage = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">PO Number</label>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">PO#</label>
                       <input
                         value={poForm.number}
                         onChange={(e) => setPoForm((p) => ({ ...p, number: e.target.value }))}
@@ -412,7 +415,7 @@ const FinancePage = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Value ($)</label>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Value (€)</label>
                       <input
                         type="number"
                         value={poForm.value}
@@ -436,6 +439,15 @@ const FinancePage = () => {
                         value={poForm.description}
                         onChange={(e) => setPoForm((p) => ({ ...p, description: e.target.value }))}
                         placeholder="PO description or notes"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                      />
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Other IDs</label>
+                      <input
+                        value={poForm.otherIds}
+                        onChange={(e) => setPoForm((p) => ({ ...p, otherIds: e.target.value }))}
+                        placeholder="Additional IDs, references, or codes"
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
                       />
                     </div>
@@ -541,7 +553,7 @@ const FinancePage = () => {
                               {po.planned && <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300 whitespace-nowrap">Planned</span>}
                               {overdue && <Flag className="w-3.5 h-3.5 text-red-500 flex-shrink-0" title="Delivery overdue" />}
                             </div>
-                            <div className="font-semibold text-gray-800 dark:text-gray-100 ml-2">${Number(po.value || 0).toLocaleString()}</div>
+                            <div className="font-semibold text-gray-800 dark:text-gray-100 ml-2">€{Number(po.value || 0).toLocaleString()}</div>
                           </div>
                           
                           {/* Dates row */}
