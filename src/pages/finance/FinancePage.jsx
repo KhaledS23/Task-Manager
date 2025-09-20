@@ -12,7 +12,6 @@ const FinancePage = () => {
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [projectNameDraft, setProjectNameDraft] = useState('');
   const [editingPoId, setEditingPoId] = useState(null);
-  const [poEditForm, setPoEditForm] = useState(null);
 
   const activeProject = useMemo(() => projects.find((p) => p.id === selectedProjectId) || projects[0] || null, [projects, selectedProjectId]);
 
@@ -51,7 +50,7 @@ const FinancePage = () => {
 
   const startEditingPO = (po) => {
     setEditingPoId(po.id);
-    setPoEditForm({
+    setPoForm({
       supplier: po.supplier || '',
       number: po.number || '',
       value: po.value || '',
@@ -64,30 +63,35 @@ const FinancePage = () => {
   };
 
   const saveEditingPO = () => {
-    if (!editingPoId || !poEditForm) return;
+    if (!editingPoId) return;
+    const supplier = poForm.supplier.trim();
+    const number = poForm.number.trim();
+    const value = parseFloat(poForm.value || '0');
+    if (!supplier || !number || !value) return;
+    
     const nextPOs = (finance.pos || []).map((po) =>
       po.id === editingPoId
         ? {
             ...po,
-            supplier: poEditForm.supplier.trim(),
-            number: poEditForm.number.trim(),
-            value: parseFloat(poEditForm.value || '0'),
-            link: poEditForm.link?.trim() || '',
-            description: poEditForm.description?.trim() || '',
-            committedAt: poEditForm.committedAt || null,
-            deliveryAt: poEditForm.deliveryAt || null,
-            planned: !!poEditForm.planned,
+            supplier,
+            number,
+            value,
+            link: poForm.link?.trim() || '',
+            description: poForm.description?.trim() || '',
+            committedAt: poForm.committedAt || null,
+            deliveryAt: poForm.deliveryAt || null,
+            planned: !!poForm.planned,
           }
         : po
     );
     updateProject(activeProject.id, { finance: { ...finance, pos: nextPOs } });
     setEditingPoId(null);
-    setPoEditForm(null);
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false });
   };
 
   const cancelEditingPO = () => {
     setEditingPoId(null);
-    setPoEditForm(null);
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false });
   };
 
   const totals = useMemo(() => {
@@ -145,12 +149,6 @@ const FinancePage = () => {
     return data;
   }, [finance, lineData]);
 
-  const events = Array.isArray(finance.events) ? finance.events : [];
-
-  const removeEvent = (id) => {
-    const next = events.filter((ev) => ev.id !== id);
-    updateProject(activeProject.id, { finance: { ...finance, events: next } });
-  };
 
   const handleReorderProjects = (sourceId, targetId) => {
     if (!sourceId || !targetId || sourceId === targetId) return;
@@ -326,22 +324,6 @@ const FinancePage = () => {
               <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                 <div className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200">
                   <span>Remaining over time</span>
-                  <div className="flex items-center gap-2 text-xs font-normal">
-                    <button onClick={() => {
-                      const date = window.prompt('Add vertical event (date YYYY-MM-DD)');
-                      if (!date) return;
-                      const label = window.prompt('Label');
-                      const events = Array.isArray(finance.events) ? finance.events : [];
-                      updateProject(activeProject.id, { finance: { ...finance, events: [...events, { id: `ev-${Date.now()}`, type: 'x', value: date, label: label || '' }] } });
-                    }} className="rounded-md border border-gray-300 px-2 py-1 text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300">+ X‑line</button>
-                    <button onClick={() => {
-                      const y = window.prompt('Add horizontal event (remaining value number)');
-                      if (!y) return;
-                      const label = window.prompt('Label');
-                      const events = Array.isArray(finance.events) ? finance.events : [];
-                      updateProject(activeProject.id, { finance: { ...finance, events: [...events, { id: `ev-${Date.now()}`, type: 'y', value: parseFloat(y), label: label || '' }] } });
-                    }} className="rounded-md border border-gray-300 px-2 py-1 text-gray-600 hover:text-indigo-500 dark:border-gray-700 dark:text-gray-300">+ Y‑line</button>
-                  </div>
                 </div>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
@@ -359,18 +341,7 @@ const FinancePage = () => {
                       <ReferenceLine y={0} stroke="#94a3b8" />
                       {/* Today marker */}
                       <ReferenceLine x={new Date().toISOString().slice(0,10)} stroke="#94a3b8" strokeDasharray="3 3" label={{ value: 'Today', position: 'top', fill: '#64748b', fontSize: 10 }} />
-                      {/* Custom events */}
-                      {(finance.events || []).map((ev) => (
-                        ev.type === 'x' ? (
-                          <ReferenceLine key={ev.id} x={ev.value} stroke="#93c5fd" strokeDasharray="4 4" label={{ value: ev.label || '', position: 'top', fill: '#60a5fa', fontSize: 10 }} />
-                        ) : (
-                          <ReferenceLine key={ev.id} y={Number(ev.value)} stroke="#fca5a5" strokeDasharray="4 4" label={{ value: ev.label || '', position: 'right', fill: '#f87171', fontSize: 10 }} />
-                        )
-                      ))}
                       <Line type="monotone" dataKey="remaining" stroke="url(#remainStroke)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                      {plannedLineData.length > 0 && (
-                        <Line type="monotone" dataKey="remaining" data={plannedLineData} stroke="#9CA3AF" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: '#9CA3AF' }} activeDot={{ r: 5 }} />
-                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -379,7 +350,9 @@ const FinancePage = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 {/* Left: PO form */}
                 <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                  <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">New PO</div>
+                  <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                    {editingPoId ? 'Edit PO' : 'New PO'}
+                  </div>
                   <div className="grid gap-2 md:grid-cols-3">
                     <input
                       value={poForm.supplier}
@@ -436,9 +409,20 @@ const FinancePage = () => {
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
-                    <button onClick={handleAddPO} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                      Add PO
-                    </button>
+                    {editingPoId ? (
+                      <>
+                        <button onClick={saveEditingPO} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                          Save Changes
+                        </button>
+                        <button onClick={cancelEditingPO} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={handleAddPO} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                        Add PO
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -452,77 +436,12 @@ const FinancePage = () => {
                         <div key={po.id} className={`rounded-lg border bg-white p-3 text-sm dark:border-gray-800 dark:bg-[#10131A] ${po.delivered ? 'border-l-4 border-emerald-500' : 'border-l-4 border-sky-500'}`}>
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              {editingPoId === po.id ? (
-                                <div className="space-y-2">
-                                  <div className="grid gap-2 md:grid-cols-3">
-                                    <input 
-                                      className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" 
-                                      value={poEditForm?.supplier || ''} 
-                                      onChange={(e)=> setPoEditForm(p => ({...p, supplier: e.target.value}))} 
-                                      placeholder="Supplier"
-                                    />
-                                    <input 
-                                      className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" 
-                                      value={poEditForm?.number || ''} 
-                                      onChange={(e)=> setPoEditForm(p => ({...p, number: e.target.value}))} 
-                                      placeholder="PO #"
-                                    />
-                                    <input 
-                                      type="number" 
-                                      className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" 
-                                      value={poEditForm?.value || ''} 
-                                      onChange={(e)=> setPoEditForm(p => ({...p, value: e.target.value}))} 
-                                      placeholder="Value"
-                                    />
-                                    <input 
-                                      className="md:col-span-3 rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" 
-                                      placeholder="Link" 
-                                      value={poEditForm?.link || ''} 
-                                      onChange={(e)=> setPoEditForm(p => ({...p, link: e.target.value}))} 
-                                    />
-                                    <input 
-                                      className="md:col-span-3 rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" 
-                                      placeholder="Description" 
-                                      value={poEditForm?.description || ''} 
-                                      onChange={(e)=> setPoEditForm(p => ({...p, description: e.target.value}))} 
-                                    />
-                                    <div className="grid grid-cols-2 gap-2 md:col-span-3">
-                                      <input 
-                                        type="date" 
-                                        className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" 
-                                        value={poEditForm?.committedAt || ''} 
-                                        onChange={(e)=> setPoEditForm(p => ({...p, committedAt: e.target.value}))} 
-                                      />
-                                      <input 
-                                        type="date" 
-                                        className="rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" 
-                                        value={poEditForm?.deliveryAt || ''} 
-                                        onChange={(e)=> setPoEditForm(p => ({...p, deliveryAt: e.target.value}))} 
-                                      />
-                                    </div>
-                                    <div className="md:col-span-3 flex items-center gap-2">
-                                      <input
-                                        type="checkbox"
-                                        checked={poEditForm?.planned || false}
-                                        onChange={(e) => setPoEditForm(p => ({ ...p, planned: e.target.checked }))}
-                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-700 dark:bg-[#10131A]"
-                                      />
-                                      <label className="text-xs text-gray-500 dark:text-gray-400">
-                                        Planned PO
-                                      </label>
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button onClick={saveEditingPO} className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-semibold text-white">Save</button>
-                                    <button onClick={cancelEditingPO} className="rounded-md border border-gray-300 px-2 py-1 text-xs">Cancel</button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
+                              <div className={`${editingPoId === po.id ? 'ring-2 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
                                   <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
                                     <span className="font-medium truncate">{po.supplier}</span>
                                     <span className="text-gray-400">•</span>
                                     <span className="truncate">{po.number}</span>
+                                    {po.planned && <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300">Planned</span>}
                                     {overdue && <Flag className="w-3.5 h-3.5 text-red-500" title="Delivery overdue" />}
                                   </div>
                                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -532,8 +451,7 @@ const FinancePage = () => {
                                     {po.link && (<><span className="mx-2">|</span><a className="underline" href={po.link} target="_blank" rel="noreferrer">Link</a></>)}
                                   </div>
                                   {po.description && (<div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{po.description}</div>)}
-                                </>
-                              )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${po.delivered ? 'border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-300' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
