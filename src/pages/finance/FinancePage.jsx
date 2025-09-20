@@ -457,13 +457,13 @@ const FinancePage = () => {
 
                 {/* Right: PO list with scroll */}
                 <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-4 space-y-3">
                     <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">Purchase Orders</div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <select
                         value={poFilter}
                         onChange={(e) => setPoFilter(e.target.value)}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                        className="rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100 flex-1 sm:flex-none sm:w-32"
                       >
                         <option value="all">All POs</option>
                         <option value="planned">Planned</option>
@@ -473,7 +473,7 @@ const FinancePage = () => {
                       <select
                         value={supplierFilter}
                         onChange={(e) => setSupplierFilter(e.target.value)}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                        className="rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100 flex-1 sm:flex-none sm:w-36"
                       >
                         <option value="all">All Suppliers</option>
                         {uniqueSuppliers.map(supplier => (
@@ -486,56 +486,65 @@ const FinancePage = () => {
                     {filteredPOs.map((po) => {
                       const overdue = po.deliveryAt && !po.delivered && new Date(po.deliveryAt) < new Date();
                       return (
-                        <div key={po.id} className={`rounded-lg border p-3 text-sm ${po.planned ? 'bg-gray-100 border-l-4 border-gray-400 dark:bg-gray-800 dark:border-gray-600' : po.delivered ? 'bg-white border-l-4 border-emerald-500 dark:border-gray-800 dark:bg-[#10131A]' : 'bg-white border-l-4 border-sky-500 dark:border-gray-800 dark:bg-[#10131A]'}`}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className={`${editingPoId === po.id ? 'ring-2 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
-                                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-100">
-                                    <span className="font-medium truncate">{po.supplier}</span>
-                                    <span className="text-gray-400">•</span>
-                                    <span className="truncate">{po.number}</span>
-                                    {po.planned && <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300">Planned</span>}
-                                    {overdue && <Flag className="w-3.5 h-3.5 text-red-500" title="Delivery overdue" />}
-                                  </div>
-                                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    <span>Committed: {po.committedAt || '—'}</span>
-                                    <span className="mx-2">|</span>
-                                    <span>Delivery: {po.deliveryAt || '—'}</span>
-                                    {po.link && (<><span className="mx-2">|</span><a className="underline" href={po.link} target="_blank" rel="noreferrer">Link</a></>)}
-                                  </div>
-                                  {po.description && (<div className="mt-1 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{po.description}</div>)}
-                                </div>
+                        <div key={po.id} className={`rounded-lg border p-4 text-sm ${po.planned ? 'bg-gray-100 border-l-4 border-gray-400 dark:bg-gray-800 dark:border-gray-600' : po.delivered ? 'bg-white border-l-4 border-emerald-500 dark:border-gray-800 dark:bg-[#10131A]' : 'bg-white border-l-4 border-sky-500 dark:border-gray-800 dark:bg-[#10131A]'} ${editingPoId === po.id ? 'ring-2 ring-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
+                          {/* Header row with supplier, number, and value */}
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="font-medium text-gray-700 dark:text-gray-100 truncate">{po.supplier}</span>
+                              <span className="text-gray-400">•</span>
+                              <span className="text-gray-600 dark:text-gray-300 truncate">{po.number}</span>
+                              {po.planned && <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300 whitespace-nowrap">Planned</span>}
+                              {overdue && <Flag className="w-3.5 h-3.5 text-red-500 flex-shrink-0" title="Delivery overdue" />}
                             </div>
+                            <div className="font-semibold text-gray-800 dark:text-gray-100 ml-2">${Number(po.value || 0).toLocaleString()}</div>
+                          </div>
+                          
+                          {/* Dates row */}
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                            <span>Committed: {po.committedAt || '—'}</span>
+                            <span className="mx-2">|</span>
+                            <span>Delivery: {po.deliveryAt || '—'}</span>
+                            {po.link && (<><span className="mx-2">|</span><a className="underline hover:text-indigo-500" href={po.link} target="_blank" rel="noreferrer">Link</a></>)}
+                          </div>
+                          
+                          {/* Description */}
+                          {po.description && (
+                            <div className="text-xs text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">{po.description}</div>
+                          )}
+                          
+                          {/* Action buttons row */}
+                          <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
-                              <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${po.planned ? 'border-gray-400 text-gray-600 dark:border-gray-600 dark:text-gray-400' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
+                              <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${po.planned ? 'border-gray-400 text-gray-600 dark:border-gray-600 dark:text-gray-400' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
                                 <button
                                   onClick={() => {
                                     const next = (finance.pos || []).map((x) => x.id === po.id ? { ...x, planned: !x.planned } : x);
                                     updateProject(activeProject.id, { finance: { ...finance, pos: next } });
                                   }}
                                   title="Toggle planned"
-                                  className={`h-4 w-4 rounded-full border ${po.planned ? 'bg-gray-500 border-gray-600' : 'border-gray-400'} flex items-center justify-center`}
+                                  className={`h-3 w-3 rounded-full border ${po.planned ? 'bg-gray-500 border-gray-600' : 'border-gray-400'} flex items-center justify-center`}
                                 >
-                                  {po.planned && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                  {po.planned && <CheckCircle2 className="w-2 h-2 text-white" />}
                                 </button>
-                                Planned
+                                <span className="whitespace-nowrap">Planned</span>
                               </div>
-                              <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${po.delivered ? 'border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-300' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
+                              <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${po.delivered ? 'border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-300' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
                                 <button
                                   onClick={() => {
                                     const next = (finance.pos || []).map((x) => x.id === po.id ? { ...x, delivered: !x.delivered } : x);
                                     updateProject(activeProject.id, { finance: { ...finance, pos: next } });
                                   }}
                                   title="Toggle delivered"
-                                  className={`h-4 w-4 rounded-full border ${po.delivered ? 'bg-emerald-500 border-emerald-600' : 'border-gray-400'} flex items-center justify-center`}
+                                  className={`h-3 w-3 rounded-full border ${po.delivered ? 'bg-emerald-500 border-emerald-600' : 'border-gray-400'} flex items-center justify-center`}
                                 >
-                                  {po.delivered && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                  {po.delivered && <CheckCircle2 className="w-2 h-2 text-white" />}
                                 </button>
-                                Delivered
+                                <span className="whitespace-nowrap">Delivered</span>
                               </div>
-                              <div className="font-semibold text-gray-800 dark:text-gray-100">${Number(po.value || 0).toLocaleString()}</div>
-                              <button onClick={() => startEditingPO(po)} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300">Edit</button>
-                              <button onClick={() => { const next = (finance.pos || []).filter((x)=> x.id !== po.id); updateProject(activeProject.id, { finance: { ...finance, pos: next } }); }} className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300">Delete</button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => startEditingPO(po)} className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Edit</button>
+                              <button onClick={() => { const next = (finance.pos || []).filter((x)=> x.id !== po.id); updateProject(activeProject.id, { finance: { ...finance, pos: next } }); }} className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-500 hover:text-red-600 dark:border-red-900 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20">Delete</button>
                             </div>
                           </div>
                         </div>
