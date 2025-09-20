@@ -338,12 +338,20 @@ const FinancePage = () => {
                   { label: 'Budget', value: totals.limit },
                   { label: 'Committed', value: totals.committed },
                   { label: 'Actual', value: totals.actual },
-                  { label: 'Remaining', value: totals.remaining },
-                  { label: `Planned POs (${totals.plannedCount})`, value: totals.planned },
+                  { 
+                    label: 'Remaining', 
+                    value: totals.remaining,
+                    colorClass: totals.remaining >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'
+                  },
+                  { 
+                    label: `Planned POs (${totals.plannedCount})`, 
+                    value: totals.planned,
+                    colorClass: totals.planned <= totals.remaining ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'
+                  },
                 ].map((kpi) => (
                   <div key={kpi.label} className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                     <div className="text-xs text-gray-500 dark:text-gray-400">{kpi.label}</div>
-                    <div className="mt-1 text-lg font-semibold text-gray-800 dark:text-gray-100">${(kpi.value||0).toLocaleString()}</div>
+                    <div className={`mt-1 text-lg font-semibold ${kpi.colorClass || 'text-gray-800 dark:text-gray-100'}`}>${(kpi.value||0).toLocaleString()}</div>
                   </div>
                 ))}
                 <div className={`rounded-xl border p-4 ${totals.pct <= 100 ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-700' : 'border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800'}`}>
