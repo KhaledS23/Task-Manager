@@ -18,7 +18,7 @@ const FinancePage = () => {
   const activeProject = useMemo(() => projects.find((p) => p.id === selectedProjectId) || projects[0] || null, [projects, selectedProjectId]);
 
   const finance = activeProject?.finance || {};
-  const [poForm, setPoForm] = useState({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false });
+  const [poForm, setPoForm] = useState({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
 
   useEffect(() => {
     if (projects.length === 0) {
@@ -43,11 +43,11 @@ const FinancePage = () => {
       description: poForm.description?.trim() || '',
       committedAt: poForm.committedAt || null,
       deliveryAt: poForm.deliveryAt || null,
-      delivered: false,
+      delivered: !!poForm.delivered,
       planned: !!poForm.planned,
     });
     updateProject(activeProject.id, { finance: { ...finance, pos: nextPOs } });
-    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false });
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
   };
 
   const startEditingPO = (po) => {
@@ -61,6 +61,7 @@ const FinancePage = () => {
       committedAt: po.committedAt || '',
       deliveryAt: po.deliveryAt || '',
       planned: !!po.planned,
+      delivered: !!po.delivered,
     });
   };
 
@@ -83,17 +84,18 @@ const FinancePage = () => {
             committedAt: poForm.committedAt || null,
             deliveryAt: poForm.deliveryAt || null,
             planned: !!poForm.planned,
+            delivered: !!poForm.delivered,
           }
         : po
     );
     updateProject(activeProject.id, { finance: { ...finance, pos: nextPOs } });
     setEditingPoId(null);
-    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false });
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
   };
 
   const cancelEditingPO = () => {
     setEditingPoId(null);
-    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false });
+    setPoForm({ supplier: '', number: '', value: '', link: '', description: '', committedAt: new Date().toISOString().slice(0,10), deliveryAt: '', planned: false, delivered: false });
   };
 
   const totals = useMemo(() => {
@@ -429,11 +431,31 @@ const FinancePage = () => {
                         type="checkbox"
                         id="planned-po"
                         checked={poForm.planned}
-                        onChange={(e) => setPoForm((p) => ({ ...p, planned: e.target.checked }))}
+                        onChange={(e) => setPoForm((p) => ({ 
+                          ...p, 
+                          planned: e.target.checked,
+                          delivered: e.target.checked ? false : p.delivered // If setting planned=true, ensure delivered=false
+                        }))}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-700 dark:bg-[#10131A]"
                       />
                       <label htmlFor="planned-po" className="text-xs text-gray-500 dark:text-gray-400">
                         Planned PO (future commitment)
+                      </label>
+                    </div>
+                    <div className="md:col-span-3 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="delivered-po"
+                        checked={poForm.delivered || false}
+                        onChange={(e) => setPoForm((p) => ({ 
+                          ...p, 
+                          delivered: e.target.checked,
+                          planned: e.target.checked ? false : p.planned // If setting delivered=true, ensure planned=false
+                        }))}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-700 dark:bg-[#10131A]"
+                      />
+                      <label htmlFor="delivered-po" className="text-xs text-gray-500 dark:text-gray-400">
+                        Delivered PO
                       </label>
                     </div>
                   </div>
@@ -518,7 +540,11 @@ const FinancePage = () => {
                               <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${po.planned ? 'border-gray-400 text-gray-600 dark:border-gray-600 dark:text-gray-400' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
                                 <button
                                   onClick={() => {
-                                    const next = (finance.pos || []).map((x) => x.id === po.id ? { ...x, planned: !x.planned } : x);
+                                    const next = (finance.pos || []).map((x) => x.id === po.id ? { 
+                                      ...x, 
+                                      planned: !x.planned,
+                                      delivered: x.planned ? false : x.delivered // If setting planned=true, ensure delivered=false
+                                    } : x);
                                     updateProject(activeProject.id, { finance: { ...finance, pos: next } });
                                   }}
                                   title="Toggle planned"
@@ -531,7 +557,11 @@ const FinancePage = () => {
                               <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${po.delivered ? 'border-emerald-300 text-emerald-600 dark:border-emerald-800 dark:text-emerald-300' : 'border-gray-300 text-gray-500 dark:border-gray-700 dark:text-gray-300'}`}>
                                 <button
                                   onClick={() => {
-                                    const next = (finance.pos || []).map((x) => x.id === po.id ? { ...x, delivered: !x.delivered } : x);
+                                    const next = (finance.pos || []).map((x) => x.id === po.id ? { 
+                                      ...x, 
+                                      delivered: !x.delivered,
+                                      planned: x.delivered ? false : x.planned // If setting delivered=true, ensure planned=false
+                                    } : x);
                                     updateProject(activeProject.id, { finance: { ...finance, pos: next } });
                                   }}
                                   title="Toggle delivered"
