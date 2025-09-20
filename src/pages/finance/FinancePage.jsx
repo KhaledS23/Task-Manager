@@ -393,44 +393,59 @@ const FinancePage = () => {
                     {editingPoId ? 'Edit PO' : 'New PO'}
                   </div>
                   <div className="grid gap-2 md:grid-cols-3">
-                    <input
-                      value={poForm.supplier}
-                      onChange={(e) => setPoForm((p) => ({ ...p, supplier: e.target.value }))}
-                      placeholder="Supplier"
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
-                    />
-                    <input
-                      value={poForm.number}
-                      onChange={(e) => setPoForm((p) => ({ ...p, number: e.target.value }))}
-                      placeholder="PO #"
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
-                    />
-                    <input
-                      type="number"
-                      value={poForm.value}
-                      onChange={(e) => setPoForm((p) => ({ ...p, value: e.target.value }))}
-                      placeholder="Value"
-                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
-                    />
-                    <input
-                      value={poForm.link}
-                      onChange={(e) => setPoForm((p) => ({ ...p, link: e.target.value }))}
-                      placeholder="Link to PO file (URL)"
-                      className="md:col-span-3 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
-                    />
-                    <input
-                      value={poForm.description}
-                      onChange={(e) => setPoForm((p) => ({ ...p, description: e.target.value }))}
-                      placeholder="Description"
-                      className="md:col-span-3 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
-                    />
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Supplier</label>
+                      <input
+                        value={poForm.supplier}
+                        onChange={(e) => setPoForm((p) => ({ ...p, supplier: e.target.value }))}
+                        placeholder="Supplier name"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">PO Number</label>
+                      <input
+                        value={poForm.number}
+                        onChange={(e) => setPoForm((p) => ({ ...p, number: e.target.value }))}
+                        placeholder="PO number"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Value ($)</label>
+                      <input
+                        type="number"
+                        value={poForm.value}
+                        onChange={(e) => setPoForm((p) => ({ ...p, value: e.target.value }))}
+                        placeholder="Amount"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                      />
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Link (External URL)</label>
+                      <input
+                        value={poForm.link}
+                        onChange={(e) => setPoForm((p) => ({ ...p, link: e.target.value }))}
+                        placeholder="https://example.com/po-document"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                      />
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Description</label>
+                      <input
+                        value={poForm.description}
+                        onChange={(e) => setPoForm((p) => ({ ...p, description: e.target.value }))}
+                        placeholder="PO description or notes"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100"
+                      />
+                    </div>
                     <div className="grid grid-cols-2 gap-2 md:col-span-3">
                       <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400">Committed date</label>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Committed Date</label>
                         <input type="date" value={poForm.committedAt} onChange={(e)=> setPoForm((p)=> ({...p, committedAt: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 dark:text-gray-400">Delivery date</label>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Delivery Date</label>
                         <input type="date" value={poForm.deliveryAt} onChange={(e)=> setPoForm((p)=> ({...p, deliveryAt: e.target.value}))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-[#10131A] dark:text-gray-100" />
                       </div>
                     </div>
